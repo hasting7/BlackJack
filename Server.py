@@ -235,7 +235,7 @@ class BlackJackServer:
 							'name'  : None,
 							'money' : None,
 							'cards' : None,
-							'bet'	: 0,
+							'bet'	: [],
 							'sum'	: None,
 							'seat'	: i,
 							'active':False,

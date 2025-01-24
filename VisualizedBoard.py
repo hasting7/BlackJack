@@ -346,11 +346,12 @@ class Seat():
 		self.name_tag = self.drawer.create_text(x,y-(h/2)-10, text='', fill=BLACK,font=('Arial',18,'bold'))
 		self.sum_hint_tag = self.drawer.create_text(x+bet_radius, bety, text='', fill=GOLD, font=('Arial',18))
 		self.bust_label = self.drawer.create_text(x,y,text='',fill='red',font=('Arial',48, 'bold'))
-		self.bet_chip = Chip(self.drawer,betx,bety,chip_r)
 
+		self.bet_chips = []
 		self.earnings_chips = []
 
-		self.earnings_chips.append(Chip(self.drawer,betx+(1.2*chip_r),bety-(1.2*chip_r),chip_r))
+		self.bet_chips.append(Chip(self.drawer,betx,bety,chip_r))
+		self.bet_chips.append(Chip(self.drawer,betx+(1.2*chip_r),bety-(1.2*chip_r),chip_r))
 		self.earnings_chips.append(Chip(self.drawer,betx-(1.2*chip_r),bety-(1.2*chip_r),chip_r))
 		self.earnings_chips.append(Chip(self.drawer,betx-(1.2*chip_r),bety+(1.2*chip_r),chip_r))
 
@@ -363,7 +364,8 @@ class Seat():
 		self.drawer.itemconfigure(self.name_tag, text='')
 		self.drawer.itemconfigure(self.sum_hint_tag, text='')
 		self.drawer.itemconfigure(self.bust_label,text='')
-		self.bet_chip.reset()
+		for chip in self.bet_chips:
+			chip.reset()
 		for chip in self.earnings_chips:
 			chip.reset()
 		self.hand.clear()
@@ -392,9 +394,10 @@ class Seat():
 		state = 'normal' if content['ready'] else 'hidden'
 		self.drawer.itemconfigure(self.ready_tag, state=state)
 
-		self.bet_chip.render_updates(content['bet'])
-
 		for chip, amount in zip(self.earnings_chips,content['earnings']):
+			chip.render_updates(amount)
+
+		for chip, amount in zip(self.bet_chips,content['bet']):
 			chip.render_updates(amount)
 
 		if not content['active']: return # BREAKING OUT IF PLAYER IS NOT ACTIVE TBIS MAY CAUSE ISSUES

@@ -9,10 +9,9 @@ class PlayerData():
 		self.leave_updater = leave_updater
 
 		self.money = self.money_updater(0)
-		self.bet = 0
+		self.bet = []
 		self.earnings = []
 		self.hand = []
-		self.doubled_down = False
 
 		self.seat = seat
 
@@ -28,13 +27,15 @@ class PlayerData():
 
 		return cards
 
+	def has_a_bet(self):
+		return len(self.bet) > 0 and min(self.bet) > 0
+
 
 	def end_of_hand(self):
-		self.bet = 0
+		self.bet = []
 		self.earnings = []
 		self.hand = []
 		self.in_hand = False
-		self.doubled_down = False
 
 	def payout(self, change):
 		self.money = self.money_updater(change)
@@ -75,8 +76,8 @@ class BlackJackTable():
 		self.players_in_hand = 0
 		for pid, player in self.players.items():
 			print(player.id, player.bet, player.money)
-			if player.bet > 0:
-				player.money = player.money_updater( -1 * player.bet)
+			if player.has_a_bet():
+				player.money = player.money_updater( -1 * player.bet[0])
 				player.in_hand = True
 				player.ready = False
 				self.players_in_hand += 1 
@@ -232,7 +233,8 @@ class BlackJackTable():
 		player.payout(-1 * bet) # remove funds
 		# player.bet *= 2 # double bet
 
-		player.earnings.append(player.bet)
+		player.bet.append(player.bet[0]) # double bet
+
 
 		# draw card
 		card = self.deck.draw()
@@ -326,13 +328,12 @@ class BlackJackTable():
 
 				# at this moment player.bet is the inital bet regarless of double down
 
-				# if player doubled down then player.doudbe_down and len(player.earnings) = 1
+				# if player doubled down then and len(player.bet) = 2
 				# because we add the extra token as the earnings 
 
-				final_pot = player.bet * (2 if player.doubled_down else 1)
+				final_pot = sum(player.bet)
 
 				# the final pot will equal whatever the player has taken out of their wallet
-
 
 
 				if hand_value == 21 and len(player.hand) == 2: # delt blackjack
@@ -350,52 +351,17 @@ class BlackJackTable():
 				elif hand_value < dealer_hand_value: # player loses
 					multiplier = 0
 
-				# what they bet - what they won
-				# earnings is what they gain from the bank
+
 				earnings = int(final_pot * multiplier) - final_pot
 
-				# # if the player oubled down and won
-				# if player.doubled_down and earnings > 0:
-				# 	# give then two extra chips (should be 3 extra chips total)
-				# 	for i in range(2):
-				# 		player.earnings.append(earnings)
-				# elif earnings == 0: # if the player did not double down or did not win
-				# 	player.earnings.append(max(0, earnings))
-				# else:
-				# 	player.earnings = []
-
-				if player.doubled_down:
-					# did double down
-					if earnings > 0:
-						# won on double donw
-						for i in range(2):
-							player.earnings.append(earnings)
-					if earnings == 0:
-						# pushed on double down
-						# do nothign
-						pass
-
-					else:
-						# lost on double down
-						player.earnings = []
-
-				else:
-					#did not double down
-					if earnings > 0:
-						player.earnings.append(earnings)
-						#won
-
-					else:
-						#lost or pushed 
-						pass
-
+				player.earnings = player.bet
 
 					
 
 				player.payout(int(final_pot * multiplier))
 
 				if multiplier == 0:
-					player.bet = 0
+					player.bet = []
 				
 
 		self.hand_done = True
