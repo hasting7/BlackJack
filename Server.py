@@ -91,7 +91,6 @@ class BlackJackServer:
 
 		status = None
 		content = None
-		
 
 		if command == JOIN:
 			with self.lock:
@@ -133,8 +132,9 @@ class BlackJackServer:
 				if response:
 					print("Game started with players:")
 					for player_id in self.table.active_players:
-						with self.lock:
-							print(self.threads[player_id].name.get())
+						if player_id:
+							with self.lock:
+								print(self.threads[player_id].name.get())
 
 					status = SUCCESS
 					content = "game started"
@@ -218,17 +218,27 @@ class BlackJackServer:
 
 			with self.table_lock:
 				player_data = []
-				for player_id in self.table.active_players:
-					player_obj = self.table.players[player_id]
-					hand_sum = self.table.smart_sum(player_obj.hand)
-					player_data.append({
-						'name'  : self.threads[player_id].name.get(),
-						'money' : player_obj.money,
-						'cards' : player_obj.share_hand(),
-						'bet'	: player_obj.bet,
-						'sum'	: hand_sum,
-						'seat'	: player_obj.seat
-					})
+				for i, player_id in enumerate(self.table.active_players):
+					if player_id:
+						player_obj = self.table.players[player_id]
+						hand_sum = self.table.smart_sum(player_obj.hand)
+						player_data.append({
+							'name'  : self.threads[player_id].name.get(),
+							'money' : player_obj.money,
+							'cards' : player_obj.share_hand(),
+							'bet'	: player_obj.bet,
+							'sum'	: hand_sum,
+							'seat'	: player_obj.seat
+						})
+					else:
+						player_data.append({
+							'name'  : "player in %d"%i,
+							'money' : 0,
+							'cards' : [],
+							'bet'	: 0,
+							'sum'	: [0],
+							'seat'	: i,
+						})
 
 				player_index = -1
 				for i in range(len(self.table.active_players)):
@@ -236,18 +246,23 @@ class BlackJackServer:
 						player_index = i
 						break
 
-				dealer_hand = self.table.share_dealer_hand(0 if self.table.players_done else 1)[::-1]
+				dealer_hand = self.table.share_dealer_hand(0 if self.table.players_done else 1)
 				dealer_sum = "?"
 				if self.table.players_done:
 					dealer_sum = str(max(self.table.smart_sum(self.table.dealer_hand)))
 
 				content = {
-					'player_count' : len(self.table.active_players),
+					'player_count' : self.table.players_in_hand,
 					'index'	: player_index,
 					'turn_index' : self.table.turn,
 					'dealer' : dealer_hand,
 					'dealer_sum' : dealer_sum,
-					'players' : player_data
+					'players' : player_data,
+					'deck' : [
+						self.table.deck.cards_remaining,
+						self.table.deck.full_deck_size,
+						self.table.deck.last_hand
+					],
 				}
 
 		return content, status
@@ -256,7 +271,7 @@ class BlackJackServer:
 		try:
 			# Placeholder for actual client handling logic
 			while True:
-				data = client.recv(1024).decode()
+				data = client.recv(BUFFER_SIZE).decode()
 				print(data)
 				if not data:
 					break

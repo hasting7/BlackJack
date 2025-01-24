@@ -16,7 +16,7 @@ class Player():
 		self.is_turn = False
 		self.should_refresh = False
 
-	def take_action(self, action_name, args, buffer_size=1024):
+	def take_action(self, action_name, args, buffer_size=BUFFER_SIZE):
 		final_call = action_name + " " + " ".join([str(arg) for arg in args]) if args else action_name
 		self.server.send(final_call.encode())
 

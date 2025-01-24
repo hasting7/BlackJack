@@ -55,20 +55,27 @@ class Card():
 		im.show()
 
 class Deck():
-	def __init__(self, deck_count, last_hand_percent=0.1):
+	def __init__(self, deck_count, last_hand_percent=0.08):
 		self.deck = []
 		self.deck_count = deck_count
 		self.last_hand_percent = last_hand_percent
 		self.full_deck_size = self.deck_count * DECK_SIZE
+		self.cards_remaining = self.full_deck_size
+
+		self.last_hand = False
 		self.reset()
 
 	def draw(self):
+		if self.full_deck_size * self.last_hand_percent > self.cards_remaining: self.last_hand = True
+		self.cards_remaining -= 1
 		return self.deck.pop(0)
 
 	def shuffle(self):
 		random.shuffle(self.deck) 
 
 	def reset(self):
+		self.last_hand = False
+		self.cards_remaining = self.full_deck_size
 		self.deck = []
 		for i in range(self.deck_count):
 			self.deck += construct_deck()

@@ -52,7 +52,8 @@ class BlackJackTable():
 		self.dealer_hand = []
 		self.dealer_bust = False
 
-		self.active_players = []
+		self.active_players = [None] * self.max_players
+		self.players_in_hand = 0
 
 		self.seats = list(range(0,self.max_players))
 
@@ -64,29 +65,43 @@ class BlackJackTable():
 		if self.in_progress: return False
 		print('the issue is no players')
 
-		players = []
+		self.players_in_hand = 0
 		for pid, player in self.players.items():
 			print(player.id, player.bet, player.money)
 			if player.bet > 0:
+				player.money = player.money_updater( -1 * player.bet)
 				player.in_hand = True
-				players.append(pid)
-		if len(players) == 0: return False
+				self.active_players[player.seat] = pid
+				self.players_in_hand += 1 
+			else:
+				player.in_hand = False
+				self.active_players[player.seat] = None
 
-		self.active_players = sorted(players, key = lambda x : self.players[x].seat)
+		if self.players_in_hand == 0: return False
+
+		# self.active_players = sorted(players, key = lambda x : self.players[x].seat)
 		self.turn = -1
 		self.in_progress = True
 		self.players_done = False
 		self.dealer_bust = False
 		self.hand_done = False
 
+
 		for player_id in self.active_players:
-			for i in range(2):
-				card = self.deck.draw()
-				self.players[player_id].hand.append(card)
+			if player_id:
+				for i in range(2):
+					card = self.deck.draw()
+					self.players[player_id].hand.append(card)
 
 		for i in range(2):
 			card = self.deck.draw()
 			self.dealer_hand.append(card)
+
+		if self.dealer_hand[1].name == 'A':
+			hand_value = self.smart_sum(self.dealer_hand)
+			if 21 in hand_value:
+				self.turn = len(self.max_players) - 1
+				# dealer got blackjack
 
 		self.next_turn()
 
@@ -105,13 +120,16 @@ class BlackJackTable():
 	def end_hand(self):
 		if not self.hand_done: return False
 		for player_id in self.active_players:
-			self.players[player_id].end_of_hand()
+			if player_id:
+				self.players[player_id].end_of_hand()
 
-		self.active_players = []
 		self.turn = None
 		self.in_progress = False
 		self.players_done = None
 		self.dealer_hand = []
+
+		if self.deck.last_hand:
+			self.deck.reset()
 
 		return True
 
@@ -128,9 +146,10 @@ class BlackJackTable():
 		if len(possible) == 1:
 			final_possible = possible
 		else:
-			if min(possible) > 21:
+			if 21 in possible:
+				final_possible.add(21)
+			elif min(possible) > 21:
 				final_possible.add(min(possible))
-			
 			else:
 				for value in possible:
 					if value <= 21:
@@ -222,7 +241,7 @@ class BlackJackTable():
 		if self.in_progress or self.players[player_id].money < amount or amount < self.min_bet: return False
 
 		self.players[player_id].bet = amount
-		self.players[player_id].money = self.players[player_id].money_updater( -1 * amount)
+
 		
 		return True
 
@@ -232,7 +251,10 @@ class BlackJackTable():
 	def next_turn(self):
 		self.turn = self.turn + 1
 
-		if self.turn >= len(self.active_players):
+		while (self.turn < self.max_players) and (self.active_players[self.turn] == None):
+			self.turn += 1
+
+		if self.turn >= self.max_players:
 			self.players_done = True
 
 			self.dealers_turn()
@@ -254,42 +276,34 @@ class BlackJackTable():
 		# determine payouts
 
 		for player_id in self.active_players:
-			player = self.players[player_id]
+			if player_id:
+				player = self.players[player_id]
 
-			hand_value = max(self.smart_sum(player.hand))
+				hand_value = max(self.smart_sum(player.hand))
 
-			multiplier = 1
-
-
-
-			if hand_value == 21 and len(player.hand) == 2: # delt blackjack
-				multiplier = 2.5
-
-			elif hand_value > 21: # player bust 
-				multiplier = 0
-
-			elif hand_value == dealer_hand_value: # matches
 				multiplier = 1
 
-			elif self.dealer_bust or hand_value > dealer_hand_value: # player wins or dealer busts
-				multiplier = 2
 
-			elif hand_value < dealer_hand_value: # player loses
-				multiplier = 0
 
-			player.payout(int(player.bet * multiplier))
-			player.bet = int(player.bet * multiplier)
+				if hand_value == 21 and len(player.hand) == 2: # delt blackjack
+					multiplier = 2.5
+
+				elif hand_value > 21: # player bust 
+					multiplier = 0
+
+				elif hand_value == dealer_hand_value: # matches
+					multiplier = 1
+
+				elif self.dealer_bust or hand_value > dealer_hand_value: # player wins or dealer busts
+					multiplier = 2
+
+				elif hand_value < dealer_hand_value: # player loses
+					multiplier = 0
+
+				player.payout(int(player.bet * multiplier))
+				player.bet = int(player.bet * multiplier)
 
 		self.hand_done = True
-
-
-	def payout(self, payouts): #payout is a float which is a bet x payout mutliplier
-
-		for i in range(len(self.active_players)):
-			player = self.players[self.active_players[i]]
-
-			player.money_updater(int(player.bet * payout[i]))
-
 
 
 if __name__ == '__main__':
