@@ -78,7 +78,7 @@ class BlackJackServer:
 			'status' : status,
 			'content': content
 		}
-		print(json.dumps(data))
+		# print(json.dumps(data))
 		return json.dumps(data)
 
 	def parse_request(self, request, address):
@@ -221,7 +221,7 @@ class BlackJackServer:
 							#player is sitting out
 							player_data.append({
 								'name'  : self.threads[player_id].name.get(),
-								'money' : player_obj.money - player_obj.bet, # THIS IS LOWKEY SKETCHT
+								'money' : player_obj.money - sum(player_obj.bet), # THIS IS LOWKEY SKETCHT
 								'cards' : None,
 								'bet'	: player_obj.bet,
 								'sum'	: None,
@@ -276,7 +276,6 @@ class BlackJackServer:
 			# Placeholder for actual client handling logic
 			while True:
 				data = client.recv(BUFFER_SIZE).decode()
-				print(data)
 				if not data:
 					break
 

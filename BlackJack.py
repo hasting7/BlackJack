@@ -226,7 +226,7 @@ class BlackJackTable():
 		if not self.is_allowed(player_id): return False
 
 		player = self.players[player_id]
-		bet = self.players[player_id].bet
+		bet = self.players[player_id].bet[0]
 		if len(player.hand) != 2: return False # already hit
 		if player.money < bet: return False # not enought money
 
@@ -261,7 +261,7 @@ class BlackJackTable():
 		else:
 			self.players[player_id].ready = False
 
-		self.players[player_id].bet = amount
+		self.players[player_id].bet = [amount]
 
 		
 		return True
@@ -270,7 +270,7 @@ class BlackJackTable():
 		ready = self.players[player_id].ready
 
 		if self.in_progress: return False
-		if not ready and self.players[player_id].bet == 0: return False # cannot ready if no bet
+		if not ready and not self.players[player_id].has_a_bet(): return False # cannot ready if no bet
 
 		self.players[player_id].ready = not ready
 
@@ -280,9 +280,9 @@ class BlackJackTable():
 			if player_id:
 				player_obj = self.players[player_id]
 				if player_obj.ready: count_ready += 1
-				count_active += 1
+				if player_obj.money > self.min_bet: count_active += 1
 
-		if count_ready/count_active >= self.ready_threshold:
+		if count_ready/(count_active+0.001) >= self.ready_threshold: # this is to get around div by zero
 			self.start_hand()
 
 
@@ -335,6 +335,8 @@ class BlackJackTable():
 
 				# the final pot will equal whatever the player has taken out of their wallet
 
+				got_blackjack = hand_value == 21 and len(player.hand) == 2
+
 
 				if hand_value == 21 and len(player.hand) == 2: # delt blackjack
 					multiplier = 2.5
@@ -354,14 +356,16 @@ class BlackJackTable():
 
 				earnings = int(final_pot * multiplier) - final_pot
 
-				player.earnings = player.bet
+				if earnings > 0:
+					player.earnings = player.bet.copy()
+					if got_blackjack: player.earnings.append(int(0.5*player.bet[0])) #adjust
+				elif earnings < 0:
+					player.bet = [0,0]
 
 					
 
 				player.payout(int(final_pot * multiplier))
 
-				if multiplier == 0:
-					player.bet = []
 				
 
 		self.hand_done = True

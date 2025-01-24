@@ -1,6 +1,6 @@
 
-PORT = 1112
-MAX_THREADS = 5
+PORT = 5555
+MAX_THREADS = 6
 BUFFER_SIZE = 2048
 
 # status codes

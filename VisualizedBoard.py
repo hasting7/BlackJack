@@ -5,6 +5,7 @@ from math import sin, cos, radians
 from time import sleep
 
 from Cards import Deck, find_card_path
+import sys
 
 from Client import Player
 
@@ -28,9 +29,9 @@ BROWN='#5C3A21'
 PURPLE='#4B0082'
 WHITE='#FFFFFF'
 
-CHIP_COLORS = ["#F44336", "#FF9800", "#FFEB3B", "#4CAF50", "#2196F3", "#9C27B0", "#00BCD4", "#FF5722", "#3F51B5", "#CDDC39"]
-CHIP_FG = [WHITE, BLACK, BLACK, WHITE, WHITE, WHITE, BLACK, BLACK, WHITE, BLACK]
-CHIP_DENOMINATIONS = [5, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000]
+CHIP_COLORS = ["#F44336", "#FF9800", "#FFEB3B", "#4CAF50", "#2196F3", "#9C27B0", "#00BCD4", "#FF5722", "#3F51B5", "#8E44AD"]
+CHIP_FG = [WHITE, BLACK, BLACK, WHITE, WHITE, WHITE, BLACK, BLACK, WHITE, WHITE]
+CHIP_DENOMINATIONS = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 10000]
 
 
 
@@ -52,6 +53,7 @@ class App(Tk):
 		self.action_queue = []
 
 		self.title("BlackJack")
+		self.attributes('-topmost', True) 
 		self.resizable(0,0)
 		self.geometry("%sx%s+%s+%s"%(W,H+user_action_height,(screen_width // 2) - (W // 2),(screen_height // 2) - ((H+user_action_height) // 2)))
 
@@ -62,9 +64,7 @@ class App(Tk):
 		self.user_actions.pack()
 		self.user_actions.pack_propagate(0)
 
-		self.bind('q', self.close)
-
-		self.bind('s', self.table_can.render_updates)
+		self.bind('q', lambda e: self.do_action(LEAVE))
 
 		self.ready_to_quit = False
 
@@ -86,11 +86,6 @@ class App(Tk):
 			personal_money = content['players'][content['index']]['money']
 			self.user_actions.render_updates(personal_money)
 
-	def close(self, e):
-		status, content = self.player_client.take_action(LEAVE,None)
-		if status == SUCCESS:
-			self.ready_to_quit = True
-
 	def start(self):
 		while not self.ready_to_quit:
 			self.update_idletasks()
@@ -100,6 +95,10 @@ class App(Tk):
 				action = self.action_queue.pop(0)
 
 				status, content = self.player_client.take_action(action,None)
+				if status == CLOSED:
+					break
+
+
 				# take action
 
 			# refresh / process updates
@@ -149,7 +148,7 @@ class UserActions(Frame):
 		self.double_btn = Button(self.action_frame, text='Double', command=self.double,highlightbackground=self.action_frame['bg'], bg=self.action_frame['bg'], font=('Arial',font_size))
 		self.double_btn.pack(side="left", fill="both", expand=True)
 
-		for chip_value, chip_color in zip(CHIP_DENOMINATIONS[:6], CHIP_COLORS):
+		for chip_value, chip_color in zip(CHIP_DENOMINATIONS[:7], CHIP_COLORS):
 			editor = BetModifier(chip_value,self.update_bet_label, self.bet_frame,width=50,height=self.bet_frame['height'],bg=chip_color)
 			editor.pack(side=LEFT)
 			editor.pack_propagate(0)
@@ -333,6 +332,8 @@ class Seat():
 		self.drawer = drawer_manager
 		self.hand = Hand(self.drawer,x - (CARD_W /2),y  - (CARD_H /2), (0, 25))
 
+		self.hands = []
+
 		bet_radius = w*0.25
 
 		betx,bety = (x - (w/2) + bet_radius,y-(1.7*h/2))
@@ -350,10 +351,21 @@ class Seat():
 		self.bet_chips = []
 		self.earnings_chips = []
 
+		locations = []
+		dist = chip_r * 1.75
+		for i in range(0,360,int(360/7)):
+			x = cos(i) *dist
+			y = sin(i) *dist
+			locations.append((x+betx,y+bety))
+
 		self.bet_chips.append(Chip(self.drawer,betx,bety,chip_r))
-		self.bet_chips.append(Chip(self.drawer,betx+(1.2*chip_r),bety-(1.2*chip_r),chip_r))
-		self.earnings_chips.append(Chip(self.drawer,betx-(1.2*chip_r),bety-(1.2*chip_r),chip_r))
-		self.earnings_chips.append(Chip(self.drawer,betx-(1.2*chip_r),bety+(1.2*chip_r),chip_r))
+		for i in range(3):
+			x,y = locations.pop(0)
+			self.bet_chips.append(Chip(self.drawer,x,y,chip_r))
+
+		for i in range(4):
+			x,y = locations.pop(0)
+			self.earnings_chips.append(Chip(self.drawer,x,y,chip_r))
 
 
 		self.ready_tag = self.drawer.create_text(x, (H+(y+(h/2)))/2,text='READY',fill='lime',font=('Arial',24,'bold'),state='hidden')
@@ -422,7 +434,8 @@ class Hand():
 	def clear(self):
 		self.cards = []
 
-	def render_updates(self, cards):
+	def render_updates(self, cards, refresh=False):
+		if refresh: self.clear()
 		cards_on_server = len(cards) 
 		cards_in_hand = len(self.cards)
 
@@ -485,7 +498,7 @@ class Dealer():
 		if deck_percentange < fake_percentage:
 			self.deck.cards.pop(-1)
 		#								this means there was a shuffle between refreshes
-		elif deck_percentange == 1 or (self.is_last_hand and not content['deck'][2] ): 
+		elif len(self.deck.cards) != self.fake_deck_cards and (deck_percentange == 1 or (self.is_last_hand and not content['deck'][2] )): 
 			self.simulate_shuffle(deck_percentange)
 		
 		self.is_last_hand = content['deck'][2]
@@ -502,6 +515,11 @@ class Dealer():
 if __name__ == '__main__':
 	from faker import Faker
 
-	app = App(Faker().first_name(), 1000)
+	if len(sys.argv) != 2:
+		name = Faker().first_name()
+	else:
+		name = sys.argv[1]
+
+	app = App(name, 5000)
 
 	app.start()
