@@ -76,8 +76,7 @@ class BlackJackServer:
 
 		data = {
 			'status' : status,
-			'content': content,
-			'last_updated_time' : time
+			'content': content
 		}
 		print(json.dumps(data))
 		return json.dumps(data)
@@ -87,7 +86,6 @@ class BlackJackServer:
 		args = request.split(' ')
 		command = args[0]
 		args = args[1:]
-
 
 		status = None
 		content = None
@@ -107,40 +105,24 @@ class BlackJackServer:
 					# add to table
 					with self.table_lock:
 						self.table.join_table(address, client_data.money.bump, lambda : print("No leave function yet"))
-
-					self.update_time()
 				else:
 					status = ILLEGAL
 					content = 'aleady claimed'
 
 		elif command == LEAVE:
 			with self.lock:
-				client_data = self.threads[address]
 				if self.table.leave_table(address):
 					status = CLOSED
 					content = 'closing connection'
-
-					self.update_time()
 				else:
 					content = 'cannot leave during game'
 					status = INVALID
 
 		elif command == START:
 			with self.table_lock:
-
-				response = self.table.start_hand()
-				if response:
-					print("Game started with players:")
-					for player_id in self.table.active_players:
-						if player_id:
-							with self.lock:
-								print(self.threads[player_id].name.get())
-
+				if self.table.start_hand():
 					status = SUCCESS
 					content = "game started"
-
-					self.update_time()
-
 				else:
 					status = INVALID
 					content = "could not start game"
@@ -160,25 +142,19 @@ class BlackJackServer:
 				client_data = self.threads[address]
 
 				with self.table_lock:
-					response = self.table.bet(address, int(args[0]))
-					if response:
+					if self.table.bet(address, int(args[0])):
 						print("%s made a bet of $%d"%(client_data.name.get(),int(args[0])))
 
 						status = SUCCESS
 						content = 'bet made'
-
-						self.update_time()
 
 					else:
 						status = INVALID
 						content = 'error placing bet'
 
 		elif command == HIT:
-			self.update_time()
 			with self.table_lock:
-				response = self.table.hit(address)
-
-				if response:
+				if self.table.hit(address):
 					status = SUCCESS
 					content = 'hit'
 
@@ -186,8 +162,17 @@ class BlackJackServer:
 					status = INVALID
 					content = 'error hitting'
 
+		elif command == READY:
+			with self.table_lock:
+				if self.table.toggle_ready(address):
+					status = SUCCESS
+					content = 'player ready'
+
+				else:
+					status = INVALID
+					content = 'cannot ready up right now'
+
 		elif command == DOUBLE:
-			self.update_time()
 			with self.table_lock:
 				if self.table.double_down(address):
 					status = SUCCESS
@@ -199,11 +184,8 @@ class BlackJackServer:
 
 
 		elif command == STAND:
-			self.update_time()
 			with self.table_lock:
-				response = self.table.stand(address)
-
-				if response:
+				if self.table.stand(address):
 					status = SUCCESS
 					content = 'stand'
 
@@ -218,31 +200,52 @@ class BlackJackServer:
 
 			with self.table_lock:
 				player_data = []
-				for i, player_id in enumerate(self.table.active_players):
+				for i, player_id in enumerate(self.table.seats):
 					if player_id:
 						player_obj = self.table.players[player_id]
-						hand_sum = self.table.smart_sum(player_obj.hand)
-						player_data.append({
-							'name'  : self.threads[player_id].name.get(),
-							'money' : player_obj.money,
-							'cards' : player_obj.share_hand(),
-							'bet'	: player_obj.bet,
-							'sum'	: hand_sum,
-							'seat'	: player_obj.seat
-						})
+						if player_obj.in_hand:
+							#player is playing
+							hand_sum = self.table.smart_sum(player_obj.hand)
+							player_data.append({
+								'name'  : self.threads[player_id].name.get(),
+								'money' : player_obj.money,
+								'cards' : player_obj.share_hand(),
+								'bet'	: player_obj.bet,
+								'sum'	: hand_sum,
+								'seat'	: i,
+								'active':True,
+								'ready' : player_obj.ready,
+								'earnings' : player_obj.earnings
+							})
+						else:
+							#player is sitting out
+							player_data.append({
+								'name'  : self.threads[player_id].name.get(),
+								'money' : player_obj.money - player_obj.bet, # THIS IS LOWKEY SKETCHT
+								'cards' : None,
+								'bet'	: player_obj.bet,
+								'sum'	: None,
+								'seat'	: i,
+								'active': False,
+								'ready' : player_obj.ready,
+								'earnings' : []
+							})
 					else:
 						player_data.append({
-							'name'  : "player in %d"%i,
-							'money' : 0,
-							'cards' : [],
+							'name'  : None,
+							'money' : None,
+							'cards' : None,
 							'bet'	: 0,
-							'sum'	: [0],
+							'sum'	: None,
 							'seat'	: i,
+							'active':False,
+							'ready' : False,
+							'earnings' : []
 						})
 
 				player_index = -1
-				for i in range(len(self.table.active_players)):
-					if address == self.table.active_players[i]:
+				for i in range(len(self.table.seats)):
+					if address == self.table.seats[i]:
 						player_index = i
 						break
 
@@ -258,6 +261,7 @@ class BlackJackServer:
 					'dealer' : dealer_hand,
 					'dealer_sum' : dealer_sum,
 					'players' : player_data,
+					'max_players' : self.table.max_players,
 					'deck' : [
 						self.table.deck.cards_remaining,
 						self.table.deck.full_deck_size,

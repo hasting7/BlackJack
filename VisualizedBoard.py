@@ -30,22 +30,23 @@ WHITE='#FFFFFF'
 
 CHIP_COLORS = ["#F44336", "#FF9800", "#FFEB3B", "#4CAF50", "#2196F3", "#9C27B0", "#00BCD4", "#FF5722", "#3F51B5", "#CDDC39"]
 CHIP_FG = [WHITE, BLACK, BLACK, WHITE, WHITE, WHITE, BLACK, BLACK, WHITE, BLACK]
-CHIP_DENOMINATIONS = [5, 25, 50, 100, 250, 500]
+CHIP_DENOMINATIONS = [5, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000]
 
 
 
 class App(Tk):
-	def __init__(self, *args, **kwargs):
-		super().__init__(*args, **kwargs)
+	def __init__(self, name, starting_money):
+		super().__init__()
 		screen_width = self.winfo_screenwidth()
 		screen_height = self.winfo_screenheight()
 
 		user_action_height = 100
 
 		try:
-			self.player_client = Player("Bot", 1000)
-		except:
+			self.player_client = Player(name,starting_money)
+		except Exception as e:
 			print("No Server Running / Cannot Connect")
+			raise e
 			exit(1)
 
 		self.action_queue = []
@@ -67,17 +68,22 @@ class App(Tk):
 
 		self.ready_to_quit = False
 
+		self.round_going = True
+
 	def render_updates(self, content):
-		if content['player_count'] == 0:
+		if self.round_going and (content['turn_index'] == None):
+			self.table_can.reset()
+			self.round_going = False
+			print('reset')
 			 # this is between rounds
 			 # make it so it doesnt reset over and over and over
-			 self.table_can.reset()
+			 
 		else:
+			self.round_going = content['turn_index'] != None
+			
 			self.table_can.render_updates(content)
 
 			personal_money = content['players'][content['index']]['money']
-			print(personal_money)
-
 			self.user_actions.render_updates(personal_money)
 
 	def close(self, e):
@@ -119,15 +125,15 @@ class UserActions(Frame):
 
 		third = self['width']*0.33
 
-		# self.money_frame = Frame(self,height=self['height'],width=third,bg=self['bg'])
-		# self.money_frame.pack(side="left")
+		self.money_frame = Frame(self,height=self['height'],bg=self['bg'])
+		self.money_frame.pack(side=LEFT)
 
-		self.bet_frame = Frame(self, height=self['height'],width=third,bg=self['bg'])
-		self.bet_frame.pack(side="left")
+		self.bet_frame = Frame(self, height=self['height'],bg=self['bg'])
+		self.bet_frame.pack(side=LEFT)
 
 
-		self.action_frame = Frame(self,height=self['height'],width=third,bg=self['bg'])
-		self.action_frame.pack(side="left")
+		self.action_frame = Frame(self,height=self['height'],bg=self['bg'])
+		self.action_frame.pack(side=RIGHT,expand=True,fill='both')
 		# self.action_frame.pack_propagate(0)
 
 		font_size = 18
@@ -143,15 +149,15 @@ class UserActions(Frame):
 		self.double_btn = Button(self.action_frame, text='Double', command=self.double,highlightbackground=self.action_frame['bg'], bg=self.action_frame['bg'], font=('Arial',font_size))
 		self.double_btn.pack(side="left", fill="both", expand=True)
 
-		for chip_value, chip_color in zip(CHIP_DENOMINATIONS, CHIP_COLORS):
+		for chip_value, chip_color in zip(CHIP_DENOMINATIONS[:6], CHIP_COLORS):
 			editor = BetModifier(chip_value,self.update_bet_label, self.bet_frame,width=50,height=self.bet_frame['height'],bg=chip_color)
 			editor.pack(side=LEFT)
 			editor.pack_propagate(0)
 			self.bet_mods.append(editor)
 
 
-		# self.bank_label = Label(self.money_frame,text='',font=('Arial',32),width=10,bg=self.money_frame['bg'])
-		# self.bank_label.pack()
+		self.bank_label = Label(self.money_frame,text='',font=('Arial',32),width=10,bg=self.money_frame['bg'])
+		self.bank_label.pack()
 
 		self.bet_view = Label(self.bet_frame,text='$0',font=('Arial',32),width=10,bg=self.bet_frame['bg'])
 		self.bet_view.pack(side=LEFT)
@@ -162,13 +168,14 @@ class UserActions(Frame):
 
 		self.update_bet_label()
 
-		#remove this later
-		self.start_btn = Button(self.action_frame, text='Start', command=self.start,highlightbackground=self.action_frame['bg'], bg=self.action_frame['bg'], font=('Arial',font_size))
-		self.start_btn.pack(side="left", fill="both", expand=True)
+		game_flow = Frame(self.action_frame, bg=self.action_frame['bg'],height=self.action_frame['height'])
+		game_flow.pack(side=LEFT, fill="both", expand=True)
 
-		self.end_btn = Button(self.action_frame, text='End', command=self.end,highlightbackground=self.action_frame['bg'], bg=self.action_frame['bg'], font=('Arial',font_size))
-		self.end_btn.pack(side="left", fill="both", expand=True)
-		#remove this lateer
+		self.ready_btn = Button(game_flow, text='Ready Up', command=self.ready,highlightbackground=game_flow['bg'], bg=game_flow['bg'], font=('Arial',font_size))
+		self.ready_btn.pack(side=TOP, fill="both", expand=True)
+
+		self.end_btn = Button(game_flow, text='Clear', command=self.end,highlightbackground=game_flow['bg'], bg=game_flow['bg'], font=('Arial',font_size))
+		self.end_btn.pack(side=TOP, fill="both", expand=True)
 
 	def change_bet(self, amount):
 		self.bet_amount += amount
@@ -180,6 +187,7 @@ class UserActions(Frame):
 			total_bet += editor.get_total()
 
 		self.bet_amount = total_bet
+
 
 		self.bet_view.config(text='$%d'%self.bet_amount)
 
@@ -199,16 +207,20 @@ class UserActions(Frame):
 		print("stading")
 		self.master.do_action(STAND)
 
+	def ready(self):
+		print("ready/unready")
+		self.master.do_action(READY)
+
 	def double(self):
 		print("double")
 		self.master.do_action(DOUBLE)
 
 	def bet(self):
+		print('betting',self.bet_amount)
 		self.master.do_action('bet %d'%self.bet_amount)
 
 	def render_updates(self,personal_money):
-		return
-		# self.bank_label.config(text='$%d'%personal_money)
+		self.bank_label.config(text='$%d'%personal_money)
 
 class BetModifier(Frame):
 	def __init__(self,delta, update_func, *args,**kwargs):
@@ -276,6 +288,45 @@ class Table(Canvas):
 			seat.reset()
 
 
+class Chip():
+	def __init__(self, drawer_manager, x, y, r):
+		self.drawer = drawer_manager
+		self.x = x 
+		self.y = y 
+		self.r = r
+
+		self.chip = self.drawer.create_oval(x-r,y-r,x+r,y+r,fill=WHITE,outline=BLACK,width=2,state='hidden')
+		self.value_tag = self.drawer.create_text(x,y, text='', fill=BLACK,font=('Arial',16))
+
+	def reset(self):
+		self.render_updates(0)
+
+	def render_updates(self,amount):
+		if amount > 0:
+			chip_index = -1
+			for i in range(len(CHIP_DENOMINATIONS)-1, 0, -1):
+				if amount - CHIP_DENOMINATIONS[i] >= 0:
+					chip_index = i
+					break
+
+			if chip_index != -1:
+				chip_bg = CHIP_COLORS[chip_index]
+				chip_fg = CHIP_FG[chip_index]
+				state = 'normal'
+				bet_text = '$%d'%amount
+
+		else:
+			chip_bg = WHITE
+			chip_fg = BLACK
+			state = 'hidden'
+			bet_text = ''
+
+		self.drawer.itemconfigure(self.chip, state=state, fill=chip_bg)
+
+		self.drawer.itemconfigure(self.value_tag, text=bet_text,fill=chip_fg)
+		self.drawer.tag_raise(self.value_tag)
+
+
 
 class Seat():
 	def __init__(self, drawer_manager, x, y, w, h):
@@ -292,22 +343,29 @@ class Seat():
 		self.turn_highlight = self.drawer.create_rectangle(x-(w/1.65),y-(h/1.65),x+(w/1.65),y+(h/1.65), fill=FELT_GREEN, outline=FELT_GREEN, width=1)
 		self.card_area = self.drawer.create_rectangle(x-(w/2),y-(h/2),x+(w/2),y+(h/2), fill=FELT_GREEN, outline=YELLOW, width=3)
 		self.bet_area = self.drawer.create_oval(betx-bet_radius, bety-bet_radius,betx+bet_radius, bety+bet_radius, fill=FELT_GREEN, outline=YELLOW, width=3)
-		self.name_tag = self.drawer.create_text(x,y-(h/2)-10, text='', fill=BLACK)
-		self.bet_tag = self.drawer.create_text(betx,bety, text='', fill=BLACK,font=('Arial',16))
+		self.name_tag = self.drawer.create_text(x,y-(h/2)-10, text='', fill=BLACK,font=('Arial',18,'bold'))
 		self.sum_hint_tag = self.drawer.create_text(x+bet_radius, bety, text='', fill=GOLD, font=('Arial',18))
 		self.bust_label = self.drawer.create_text(x,y,text='',fill='red',font=('Arial',48, 'bold'))
-		self.chip = self.drawer.create_oval(betx-chip_r,bety-chip_r,betx+chip_r,bety+chip_r,fill=WHITE,outline=BLACK,width=2,state='hidden')
+		self.bet_chip = Chip(self.drawer,betx,bety,chip_r)
+
+		self.earnings_chips = []
+
+		self.earnings_chips.append(Chip(self.drawer,betx+(1.2*chip_r),bety-(1.2*chip_r),chip_r))
+		self.earnings_chips.append(Chip(self.drawer,betx-(1.2*chip_r),bety-(1.2*chip_r),chip_r))
+		self.earnings_chips.append(Chip(self.drawer,betx-(1.2*chip_r),bety+(1.2*chip_r),chip_r))
+
+
+		self.ready_tag = self.drawer.create_text(x, (H+(y+(h/2)))/2,text='READY',fill='lime',font=('Arial',24,'bold'),state='hidden')
 
 	def reset(self):
 		self.drawer.itemconfigure(self.turn_highlight, fill=FELT_GREEN, outline=FELT_GREEN)
 		self.drawer.itemconfigure(self.card_area, fill=FELT_GREEN)
 		self.drawer.itemconfigure(self.name_tag, text='')
-		self.drawer.itemconfigure(self.bet_tag, text='')
 		self.drawer.itemconfigure(self.sum_hint_tag, text='')
 		self.drawer.itemconfigure(self.bust_label,text='')
-		self.drawer.itemconfigure(self.chip,state='hidden')
-		self.drawer.itemconfigure(self.bet_tag,fill=BLACK)
-
+		self.bet_chip.reset()
+		for chip in self.earnings_chips:
+			chip.reset()
 		self.hand.clear()
 
 
@@ -328,44 +386,29 @@ class Seat():
 		self.drawer.itemconfigure(self.turn_highlight, fill=color, outline=color)
 		self.drawer.itemconfigure(self.name_tag,fill=fg)
 		self.drawer.itemconfigure(self.card_area, fill=color)
+		self.drawer.itemconfigure(self.name_tag, text=content['name'])
+
+
+		state = 'normal' if content['ready'] else 'hidden'
+		self.drawer.itemconfigure(self.ready_tag, state=state)
+
+		self.bet_chip.render_updates(content['bet'])
+
+		for chip, amount in zip(self.earnings_chips,content['earnings']):
+			chip.render_updates(amount)
+
+		if not content['active']: return # BREAKING OUT IF PLAYER IS NOT ACTIVE TBIS MAY CAUSE ISSUES
+
 
 		bust_text = 'BUST' if min(content['sum']) > 21 else ''
-
-
+		self.drawer.itemconfigure(self.sum_hint_tag, text='/'.join([str(val) for val in content['sum']]))
 		self.drawer.itemconfigure(self.bust_label, text=bust_text)
 		self.drawer.tag_raise(self.bust_label)
-		self.drawer.itemconfigure(self.name_tag, text=content['name'])
-		self.drawer.itemconfigure(self.sum_hint_tag, text='/'.join([str(val) for val in content['sum']]))
 		self.hand.render_updates(content['cards'])
 
 
-		# make bets look good
-
-		# make this only run when just starting
-
-		chip_index = -1
-		for i in range(len(CHIP_DENOMINATIONS)-1, 0, -1):
-			if content['bet'] - CHIP_DENOMINATIONS[i] >= 0:
-				chip_index = i
-				break
-
-		if chip_index != -1:
-			chip_bg = CHIP_COLORS[chip_index]
-			chip_fg = CHIP_FG[chip_index]
-			state = 'normal'
-
-		else:
-			chip_bg = WHITE
-			chip_fg = BLACK
-			state = 'hidden'
-
-		self.drawer.itemconfigure(self.chip, state=state, fill=chip_bg)
-
-		self.drawer.itemconfigure(self.bet_tag, text="$%d"%content['bet'],fill=chip_fg)
-		self.drawer.tag_raise(self.bet_tag)
 		
-
-
+		
 class Hand():
 	def __init__(self, drawer_manager, x, y, offset=(35,5)):
 		self.x, self.y = x,y
@@ -424,11 +467,11 @@ class Dealer():
 
 		self.is_last_hand = True
 
-		self.deck = Hand(self.drawer, x+(w/2)+100, y-(h/2)+10, (1,-1))
+		self.deck = Hand(self.drawer, x+(w/2)+(CARD_W/3), y-(CARD_H/2), (1,-1))
 		
 
 	def render_updates(self,content):
-		if content['turn_index'] == content['player_count']: self.hand.clear()
+		if content['turn_index'] == content['max_players']: self.hand.clear()
 		self.hand.render_updates(content['dealer'])
 
 		self.drawer.itemconfigure(self.sum_label, text=content['dealer_sum'])
@@ -454,9 +497,8 @@ class Dealer():
 		self.hand.clear()
 
 if __name__ == '__main__':
+	from faker import Faker
 
-	deck = Deck(1).draw()
-
-	app = App()
+	app = App(Faker().first_name(), 1000)
 
 	app.start()

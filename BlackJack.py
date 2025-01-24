@@ -10,11 +10,15 @@ class PlayerData():
 
 		self.money = self.money_updater(0)
 		self.bet = 0
+		self.earnings = []
 		self.hand = []
+		self.doubled_down = False
 
 		self.seat = seat
 
 		self.in_hand = False
+
+		self.ready = False
 
 	def share_hand(self):
 		cards = []
@@ -27,8 +31,10 @@ class PlayerData():
 
 	def end_of_hand(self):
 		self.bet = 0
+		self.earnings = []
 		self.hand = []
 		self.in_hand = False
+		self.doubled_down = False
 
 	def payout(self, change):
 		self.money = self.money_updater(change)
@@ -43,6 +49,8 @@ class BlackJackTable():
 
 		self.deck = Deck(6)
 
+		self.ready_threshold = 0.4
+
 		# turn is based on active_player array
 		self.in_progress = False
 		self.turn = None
@@ -52,18 +60,17 @@ class BlackJackTable():
 		self.dealer_hand = []
 		self.dealer_bust = False
 
-		self.active_players = [None] * self.max_players
+		# self.active_players = [None] * self.max_players
 		self.players_in_hand = 0
 
-		self.seats = list(range(0,self.max_players))
+		self.open_seats = list(range(0,self.max_players))
+		self.seats = [None] * self.max_players
 
 	def has_room(self):
 		return self.players_at_table < self.max_players
 
 	def start_hand(self):
-		print(self.in_progress)
 		if self.in_progress: return False
-		print('the issue is no players')
 
 		self.players_in_hand = 0
 		for pid, player in self.players.items():
@@ -71,11 +78,10 @@ class BlackJackTable():
 			if player.bet > 0:
 				player.money = player.money_updater( -1 * player.bet)
 				player.in_hand = True
-				self.active_players[player.seat] = pid
+				player.ready = False
 				self.players_in_hand += 1 
 			else:
 				player.in_hand = False
-				self.active_players[player.seat] = None
 
 		if self.players_in_hand == 0: return False
 
@@ -87,8 +93,8 @@ class BlackJackTable():
 		self.hand_done = False
 
 
-		for player_id in self.active_players:
-			if player_id:
+		for player_id in self.seats:
+			if player_id and self.players[player_id].in_hand:
 				for i in range(2):
 					card = self.deck.draw()
 					self.players[player_id].hand.append(card)
@@ -100,7 +106,7 @@ class BlackJackTable():
 		if self.dealer_hand[1].name == 'A':
 			hand_value = self.smart_sum(self.dealer_hand)
 			if 21 in hand_value:
-				self.turn = len(self.max_players) - 1
+				self.turn = self.max_players - 1
 				# dealer got blackjack
 
 		self.next_turn()
@@ -119,8 +125,8 @@ class BlackJackTable():
 
 	def end_hand(self):
 		if not self.hand_done: return False
-		for player_id in self.active_players:
-			if player_id:
+		for player_id in self.seats:
+			if player_id and self.players[player_id].in_hand:
 				self.players[player_id].end_of_hand()
 
 		self.turn = None
@@ -169,8 +175,10 @@ class BlackJackTable():
 	def join_table(self, player_id, money_function, leave_funtion):
 		if not self.has_room(): return False
 
-		seat = choice(self.seats)
-		self.seats.remove(seat)
+		seat = choice(self.open_seats)
+		self.open_seats.remove(seat)
+
+		self.seats[seat] = player_id
 
 		self.players[player_id] = PlayerData(player_id, seat, money_function, leave_funtion)
 		self.players_at_table += 1
@@ -183,7 +191,11 @@ class BlackJackTable():
 	def leave_table(self, player_id):
 		if self.players[player_id].in_hand: return False
 
-		self.seats.append(self.players[player_id].seat)
+		seat = self.players[player_id].seat
+
+		self.seats[seat] = None
+
+		self.open_seats.append(seat)
 
 		self.players_at_table -= 1
 		self.players[player_id].leave_updater()
@@ -218,11 +230,15 @@ class BlackJackTable():
 		if player.money < bet: return False # not enought money
 
 		player.payout(-1 * bet) # remove funds
-		player.bet *= 2 # double bet
+		# player.bet *= 2 # double bet
+
+		player.earnings.append(player.bet)
 
 		# draw card
 		card = self.deck.draw()
 		player.hand.append(card)
+
+		player.doubled_down = True
 
 
 		self.next_turn()
@@ -238,20 +254,45 @@ class BlackJackTable():
 		return True
 
 	def bet(self, player_id, amount):
-		if self.in_progress or self.players[player_id].money < amount or amount < self.min_bet: return False
+		if amount != 0:
+			if self.players[player_id].in_hand or self.players[player_id].money < amount or amount < self.min_bet: return False
+		else:
+			self.players[player_id].ready = False
 
 		self.players[player_id].bet = amount
 
 		
 		return True
 
+	def toggle_ready(self,player_id):
+		ready = self.players[player_id].ready
+
+		if self.in_progress: return False
+		if not ready and self.players[player_id].bet == 0: return False # cannot ready if no bet
+
+		self.players[player_id].ready = not ready
+
+		count_ready = 0
+		count_active = 0
+		for player_id in self.seats:
+			if player_id:
+				player_obj = self.players[player_id]
+				if player_obj.ready: count_ready += 1
+				count_active += 1
+
+		if count_ready/count_active >= self.ready_threshold:
+			self.start_hand()
+
+
 	def is_allowed(self, player_id):
-		return self.in_progress and self.players_done == False and self.active_players[self.turn] == player_id
+		return self.in_progress and self.players_done == False and self.seats[self.turn] == player_id
 
 	def next_turn(self):
 		self.turn = self.turn + 1
 
-		while (self.turn < self.max_players) and (self.active_players[self.turn] == None):
+		while (self.turn < self.max_players):
+			if self.seats[self.turn] != None and self.players[self.seats[self.turn]].in_hand:
+				break
 			self.turn += 1
 
 		if self.turn >= self.max_players:
@@ -260,7 +301,7 @@ class BlackJackTable():
 			self.dealers_turn()
 
 		else:
-			hand = self.players[self.active_players[self.turn]].hand
+			hand = self.players[self.seats[self.turn]].hand
 			hand_value = self.smart_sum(hand)
 			if 21 in hand_value:
 				self.next_turn()
@@ -275,13 +316,22 @@ class BlackJackTable():
 
 		# determine payouts
 
-		for player_id in self.active_players:
-			if player_id:
+		for player_id in self.seats:
+			if player_id and self.players[player_id].in_hand:
 				player = self.players[player_id]
 
 				hand_value = max(self.smart_sum(player.hand))
 
 				multiplier = 1
+
+				# at this moment player.bet is the inital bet regarless of double down
+
+				# if player doubled down then player.doudbe_down and len(player.earnings) = 1
+				# because we add the extra token as the earnings 
+
+				final_pot = player.bet * (2 if player.doubled_down else 1)
+
+				# the final pot will equal whatever the player has taken out of their wallet
 
 
 
@@ -300,8 +350,53 @@ class BlackJackTable():
 				elif hand_value < dealer_hand_value: # player loses
 					multiplier = 0
 
-				player.payout(int(player.bet * multiplier))
-				player.bet = int(player.bet * multiplier)
+				# what they bet - what they won
+				# earnings is what they gain from the bank
+				earnings = int(final_pot * multiplier) - final_pot
+
+				# # if the player oubled down and won
+				# if player.doubled_down and earnings > 0:
+				# 	# give then two extra chips (should be 3 extra chips total)
+				# 	for i in range(2):
+				# 		player.earnings.append(earnings)
+				# elif earnings == 0: # if the player did not double down or did not win
+				# 	player.earnings.append(max(0, earnings))
+				# else:
+				# 	player.earnings = []
+
+				if player.doubled_down:
+					# did double down
+					if earnings > 0:
+						# won on double donw
+						for i in range(2):
+							player.earnings.append(earnings)
+					if earnings == 0:
+						# pushed on double down
+						# do nothign
+						pass
+
+					else:
+						# lost on double down
+						player.earnings = []
+
+				else:
+					#did not double down
+					if earnings > 0:
+						player.earnings.append(earnings)
+						#won
+
+					else:
+						#lost or pushed 
+						pass
+
+
+					
+
+				player.payout(int(final_pot * multiplier))
+
+				if multiplier == 0:
+					player.bet = 0
+				
 
 		self.hand_done = True
 

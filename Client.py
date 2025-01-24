@@ -8,10 +8,8 @@ class Player():
 		self.server = socket.socket()
 		self.server.connect(('0.0.0.0', PORT))
 
-		self.last_refreshed = datetime.datetime.now()
 
-		status, content = self.take_action(JOIN, [name,money])
-		
+		status, content = self.take_action(JOIN, [name,money])		
 
 		self.is_turn = False
 		self.should_refresh = False
@@ -22,13 +20,6 @@ class Player():
 
 		response = self.server.recv(buffer_size).decode()
 		json_resp = json.loads(response)
-
-		server_update_time = datetime.datetime.fromisoformat(json_resp['last_updated_time'])
-
-		if action_name == VIEW:
-			self.last_refreshed = datetime.datetime.now()
-		if self.last_refreshed < server_update_time:
-			self.should_refresh = True
 
 		return json_resp['status'], json_resp['content']
 
