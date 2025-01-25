@@ -140,16 +140,16 @@ class UserActions(Frame):
 
 
 		self.hit_btn = Button(self.action_frame, text='Hit', command=self.hit,highlightbackground=self.action_frame['bg'], bg=self.action_frame['bg'], font=('Arial',font_size))
-		self.hit_btn.pack(side="left", fill="both", expand=True)
+		self.hit_btn.pack(side="left", fill="y")
 
 		self.stand_btn = Button(self.action_frame, text='Stand', command=self.stand,highlightbackground=self.action_frame['bg'], bg=self.action_frame['bg'], font=('Arial',font_size))
-		self.stand_btn.pack(side="left", fill="both", expand=True)
+		self.stand_btn.pack(side="left", fill="y")
 
 		self.double_btn = Button(self.action_frame, text='Double', command=self.double,highlightbackground=self.action_frame['bg'], bg=self.action_frame['bg'], font=('Arial',font_size))
-		self.double_btn.pack(side="left", fill="both", expand=True)
+		self.double_btn.pack(side="left", fill="y")
 
-		for chip_value, chip_color in zip(CHIP_DENOMINATIONS[:8], CHIP_COLORS):
-			editor = BetModifier(chip_value,self.update_bet_label, self.bet_frame,width=60,height=self.bet_frame['height'],bg=chip_color)
+		for chip_value, chip_color in zip(CHIP_DENOMINATIONS[:7], CHIP_COLORS):
+			editor = BetModifier(chip_value,self.update_bet_label, self.bet_frame,width=55,height=self.bet_frame['height'],bg=chip_color)
 			editor.pack(side=LEFT)
 			editor.pack_propagate(0)
 			self.bet_mods.append(editor)
@@ -338,7 +338,7 @@ class Seat():
 
 		betx,bety = (x - (w/2) + bet_radius,y-(1.7*h/2))
 
-		chip_r = 0.75*bet_radius
+		chip_r = 0.85*bet_radius
 		
 
 		self.turn_highlight = self.drawer.create_rectangle(x-(w/1.65),y-(h/1.65),x+(w/1.65),y+(h/1.65), fill=FELT_GREEN, outline=FELT_GREEN, width=1)
@@ -368,7 +368,7 @@ class Seat():
 			self.earnings_chips.append(Chip(self.drawer,x,y,chip_r))
 
 
-		self.ready_tag = self.drawer.create_text(x, (H+(y+(h/2)))/2,text='READY',fill='lime',font=('Arial',24,'bold'),state='hidden')
+		self.ready_tag = self.drawer.create_text(x, y+h+200,text='READY',fill='lime',font=('Arial',24,'bold'),state='hidden')
 
 	def reset(self):
 		self.drawer.itemconfigure(self.turn_highlight, fill=FELT_GREEN, outline=FELT_GREEN)
