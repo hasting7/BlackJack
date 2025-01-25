@@ -423,7 +423,6 @@ class Seat():
 
 
 		
-		
 class Hand():
 	def __init__(self, drawer_manager, x, y, offset=(35,5)):
 		self.x, self.y = x,y
@@ -520,6 +519,6 @@ if __name__ == '__main__':
 	else:
 		name = sys.argv[1]
 
-	app = App(name, 5000)
+	app = App(name, 50000)
 
 	app.start()
