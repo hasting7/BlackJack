@@ -31,7 +31,7 @@ WHITE='#FFFFFF'
 
 CHIP_COLORS = ["#F44336", "#FF9800", "#FFEB3B", "#4CAF50", "#2196F3", "#9C27B0", "#00BCD4", "#FF5722", "#3F51B5", "#8E44AD"]
 CHIP_FG = [WHITE, BLACK, BLACK, WHITE, WHITE, WHITE, BLACK, BLACK, WHITE, WHITE]
-CHIP_DENOMINATIONS = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 10000]
+CHIP_DENOMINATIONS = [25, 50, 100, 250, 500, 1000, 2500, 10000]
 
 
 
@@ -148,17 +148,17 @@ class UserActions(Frame):
 		self.double_btn = Button(self.action_frame, text='Double', command=self.double,highlightbackground=self.action_frame['bg'], bg=self.action_frame['bg'], font=('Arial',font_size))
 		self.double_btn.pack(side="left", fill="both", expand=True)
 
-		for chip_value, chip_color in zip(CHIP_DENOMINATIONS[:7], CHIP_COLORS):
-			editor = BetModifier(chip_value,self.update_bet_label, self.bet_frame,width=50,height=self.bet_frame['height'],bg=chip_color)
+		for chip_value, chip_color in zip(CHIP_DENOMINATIONS[:8], CHIP_COLORS):
+			editor = BetModifier(chip_value,self.update_bet_label, self.bet_frame,width=60,height=self.bet_frame['height'],bg=chip_color)
 			editor.pack(side=LEFT)
 			editor.pack_propagate(0)
 			self.bet_mods.append(editor)
 
 
-		self.bank_label = Label(self.money_frame,text='',font=('Arial',32),width=10,bg=self.money_frame['bg'])
+		self.bank_label = Label(self.money_frame,text='',font=('Arial',32),width=10,bg=self.money_frame['bg'],fg=WHITE)
 		self.bank_label.pack()
 
-		self.bet_view = Label(self.bet_frame,text='$0',font=('Arial',32),width=10,bg=self.bet_frame['bg'])
+		self.bet_view = Label(self.bet_frame,text='$0',font=('Arial',32),width=10,bg=self.bet_frame['bg'],fg=WHITE)
 		self.bet_view.pack(side=LEFT)
 
 		self.make_bet = Button(self.bet_frame, text='Place Bet', command=self.bet,highlightbackground=self.bet_frame['bg'], bg=self.bet_frame['bg'], font=('Arial',font_size))
@@ -188,7 +188,7 @@ class UserActions(Frame):
 		self.bet_amount = total_bet
 
 
-		self.bet_view.config(text='$%d'%self.bet_amount)
+		self.bet_view.config(text="${:,}".format(self.bet_amount))
 
 	def hit(self):
 		print("hitting")
@@ -219,7 +219,7 @@ class UserActions(Frame):
 		self.master.do_action('bet %d'%self.bet_amount)
 
 	def render_updates(self,personal_money):
-		self.bank_label.config(text='$%d'%personal_money)
+		self.bank_label.config(text="${:,}".format(personal_money))
 
 class BetModifier(Frame):
 	def __init__(self,delta, update_func, *args,**kwargs):
@@ -312,7 +312,7 @@ class Chip():
 				chip_bg = CHIP_COLORS[chip_index]
 				chip_fg = CHIP_FG[chip_index]
 				state = 'normal'
-				bet_text = '$%d'%amount
+				bet_text = "${:,}".format(amount)
 
 		else:
 			chip_bg = WHITE
