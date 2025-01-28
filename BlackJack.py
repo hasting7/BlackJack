@@ -173,11 +173,12 @@ class BlackJackTable():
 		return total > 21
 
 	def locate_seat(self):
-		mu = (len(self.seats) - 1) / 2
+		mu = (len(self.open_seats) - 1) / 2
 		index = int(gauss(mu,1))
-		random_index = max(0, min(len(self.seats) - 1, index))
+		random_index = max(0, min(len(self.open_seats) - 1, index))
+		seat = self.open_seats.pop(random_index)
 
-		return random_index
+		return seat
 
 
 

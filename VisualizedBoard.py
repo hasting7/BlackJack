@@ -322,6 +322,10 @@ class Chip():
 		self.render_updates(0)
 
 	def render_updates(self,amount):
+		chip_bg = WHITE
+		chip_fg = BLACK
+		state = 'hidden'
+		bet_text = ''
 		if amount > 0:
 			chip_index = -1
 			for i in range(len(CHIP_DENOMINATIONS)-1, 0, -1):
@@ -334,12 +338,6 @@ class Chip():
 				chip_fg = CHIP_FG[chip_index]
 				state = 'normal'
 				bet_text = "${:,}".format(amount)
-
-		else:
-			chip_bg = WHITE
-			chip_fg = BLACK
-			state = 'hidden'
-			bet_text = ''
 
 		self.drawer.itemconfigure(self.chip, state=state, fill=chip_bg)
 
@@ -534,6 +532,19 @@ class Hand():
 		self.seat_index = seat
 
 	def clear(self):
+		for card in self.cards:
+			obj, front, back, pos = card
+			self.drawer.master.animations.append(
+				DiscardCardAnimation(
+					self.drawer,
+					obj,
+					pos,
+					(W,self.drawer.deck_location[1]),
+					0.75,
+					0,
+					card
+					)
+			)
 		self.cards = []
 
 	def render_updates(self, cards, refresh=False):
@@ -577,7 +588,7 @@ class Hand():
 
 		card_obj = self.drawer.create_image(start_x, start_y, anchor='nw', image=inital_image, state='hidden')
 
-		self.cards.append([card_obj, card_back, img])
+		self.cards.append([card_obj, card_back, img, (final_x,final_y)])
 
 		if animation_info: # only animate if a delay is given
 			duration, delay = animation_info
@@ -634,6 +645,36 @@ class DealCardAnimation(Animation):
 			self.drawer.itemconfigure(self.image, image=self.card_face)
 
 		del self.card_face
+		del self
+
+class DiscardCardAnimation(Animation):
+	def __init__(self, drawer, image, start_coords, end_coords, duration, delay, card_data):
+		super().__init__(self.move, self.clean_up, duration, delay)
+		self.drawer = drawer
+		self.image = image
+		self.start_coords = start_coords
+		self.end_coords = end_coords
+		self.delay = delay
+		self.duration = duration
+		self.coords = self.start_coords
+
+		self.speed_x = (self.end_coords[0] - self.start_coords[0])/ self.duration
+		self.speed_y = (self.end_coords[1] - self.start_coords[1])/ self.duration 
+		self.card_data = card_data
+
+	def move(self, dt):
+		print('update')
+		self.coords = (self.coords[0] + self.speed_x * dt, self.coords[1] + self.speed_y * dt)
+		self.drawer.coords(self.image, self.coords[0], self.coords[1])
+		self.drawer.tag_raise(self.image)
+		x, y = self.coords
+		margin = 15
+		return (self.end_coords[0] - margin <= x <= self.end_coords[0] + margin) and \
+			(self.end_coords[1] - margin <= y <= self.end_coords[1] + margin)
+
+	def clean_up(self):
+		self.drawer.coords(self.image, self.end_coords[0],self.end_coords[1])
+		del self.card_data
 		del self
 
 
