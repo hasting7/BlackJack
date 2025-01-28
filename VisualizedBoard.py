@@ -1,8 +1,8 @@
 from tkinter import *
 from PIL import Image,ImageTk
 
-from math import sin, cos, radians
-from time import sleep
+from math import sin, cos, radians, sqrt
+from time import sleep, time
 
 from Cards import Deck, find_card_path
 import sys
@@ -13,6 +13,8 @@ from StatusCodes import *
 
 W,H = (1200, 600)
 SEATS = 6
+DEAL_SPEED = 0.3
+DELAY = 0.25
 
 scale = 170/120
 CARD_W = 100
@@ -51,9 +53,12 @@ class App(Tk):
 			exit(1)
 
 		self.action_queue = []
+		self.ready_to_quit = False
+		self.round_going = True
+		self.animations = []
 
 		self.title("BlackJack")
-		self.attributes('-topmost', True) 
+		# self.attributes('-topmost', True) 
 		self.resizable(0,0)
 		self.geometry("%sx%s+%s+%s"%(W,H+user_action_height,(screen_width // 2) - (W // 2),(screen_height // 2) - ((H+user_action_height) // 2)))
 
@@ -66,11 +71,10 @@ class App(Tk):
 
 		self.bind('q', lambda e: self.do_action(LEAVE))
 
-		self.ready_to_quit = False
-
-		self.round_going = True
+		
 
 	def render_updates(self, content):
+
 		if self.round_going and (content['turn_index'] == None):
 			self.table_can.reset()
 			self.round_going = False
@@ -105,6 +109,12 @@ class App(Tk):
 			status, content = self.player_client.take_action(VIEW,None)
 			if status == SUCCESS:
 				self.render_updates(content)
+
+
+			for animation_i in range(len(self.animations) - 1, -1, -1):
+				status = self.animations[animation_i].iterate()
+				if status:
+					self.animations.pop(animation_i)
 
 
 			sleep(0.01)
@@ -219,7 +229,8 @@ class UserActions(Frame):
 		self.master.do_action('bet %d'%self.bet_amount)
 
 	def render_updates(self,personal_money):
-		self.bank_label.config(text="${:,}".format(personal_money))
+		if personal_money:
+			self.bank_label.config(text="${:,}".format(personal_money))
 
 class BetModifier(Frame):
 	def __init__(self,delta, update_func, *args,**kwargs):
@@ -260,6 +271,10 @@ class Table(Canvas):
 		self.seats = []
 		self.players = []
 		self.dealer = Dealer(self, W/2, 110, 600,180)
+		self.deck_location = self.dealer.deck_location
+
+
+		self.cards_to_deal = [0] * (SEATS + 1)
 
 		player_space = W / (SEATS + 1)
 		y = 425
@@ -269,16 +284,22 @@ class Table(Canvas):
 		height = CARD_H*scale
 
 		for i in range(SEATS):
-			seat = Seat(self, x ,y, width, height)
+			seat = Seat(self, i, x ,y, width, height)
 			self.seats.append(seat)
 			x += player_space
 
 	def render_updates(self, content):
-		self.dealer.render_updates(content)
-
 		for i, player in enumerate(content['players']):
 			seat = self.seats[player['seat']]
-			seat.render_updates(player, i == content['index'], i == content['turn_index'])
+			seat.render_updates(player, i, i == content['index'], i == content['turn_index'])
+
+		self.dealer.render_updates(content)
+
+		self.tag_lower('table')
+
+	def done_dealing(self, seat=None):
+		if not seat: return sum(self.cards_to_deal) == 0
+		return self.cards_to_deal[seat] == 0
 
 
 	def reset(self):
@@ -325,12 +346,46 @@ class Chip():
 		self.drawer.itemconfigure(self.value_tag, text=bet_text,fill=chip_fg)
 		self.drawer.tag_raise(self.value_tag)
 
+class Animation():
+	def __init__(self, animation_function, clean_up_function, duration, delay):
+		self.duration = duration
+		self.delay = delay
+		self.update_function = animation_function
+		self.clean_up_function = clean_up_function
+
+		self.terminate = False
+
+		self.start_time = time()
+		self.first_frame = None
+		self.last_time = time()
+		self.current_time = time()
+		self.time_remaning = duration
+
+	def iterate(self):
+		self.last_time = self.current_time
+		self.current_time = time()
+		if self.current_time -  self.start_time < self.delay: return False
+		if not self.first_frame: self.first_frame = time()
+
+		dt = self.current_time - self.last_time
+
+		self.time_remaning = self.duration - (self.current_time - self.first_frame)
+
+		is_done = self.update_function(dt)
+
+		is_done = is_done or self.time_remaning <= 0
+
+		if is_done:
+			self.clean_up()
+
+		return is_done
 
 
 class Seat():
-	def __init__(self, drawer_manager, x, y, w, h):
+	def __init__(self, drawer_manager, seat_index, x, y, w, h):
 		self.drawer = drawer_manager
-		self.hand = Hand(self.drawer,x - (CARD_W /2),y  - (CARD_H /2), (0, 25))
+		self.seat_index = seat_index
+		self.hand = Hand(self.drawer, seat_index, x - (CARD_W /2),y  - (CARD_H /2), (0, 25))
 
 		self.hands = []
 
@@ -341,12 +396,14 @@ class Seat():
 		chip_r = 0.85*bet_radius
 		
 
-		self.turn_highlight = self.drawer.create_rectangle(x-(w/1.65),y-(h/1.65),x+(w/1.65),y+(h/1.65), fill=FELT_GREEN, outline=FELT_GREEN, width=1)
-		self.card_area = self.drawer.create_rectangle(x-(w/2),y-(h/2),x+(w/2),y+(h/2), fill=FELT_GREEN, outline=YELLOW, width=3)
-		self.bet_area = self.drawer.create_oval(betx-bet_radius, bety-bet_radius,betx+bet_radius, bety+bet_radius, fill=FELT_GREEN, outline=YELLOW, width=3)
+		self.turn_highlight = self.drawer.create_rectangle(x-(w/1.65),y-(h/1.65),x+(w/1.65),y+(h/1.65), fill=FELT_GREEN, outline=FELT_GREEN, width=1,tags='table')
+		self.card_area = self.drawer.create_rectangle(x-(w/2),y-(h/2),x+(w/2),y+(h/2), fill=FELT_GREEN, outline=YELLOW, width=3,tags='table')
+		self.bet_area = self.drawer.create_oval(betx-bet_radius, bety-bet_radius,betx+bet_radius, bety+bet_radius, fill=FELT_GREEN, outline=YELLOW, width=3,tags='table')
 		self.name_tag = self.drawer.create_text(x,y-(h/2)-10, text='', fill=BLACK,font=('Arial',18,'bold'))
 		self.sum_hint_tag = self.drawer.create_text(x+bet_radius, bety, text='', fill=GOLD, font=('Arial',18))
-		self.bust_label = self.drawer.create_text(x,y,text='',fill='red',font=('Arial',48, 'bold'))
+		self.seat_notification = SmartLabel(self.drawer, x, y, ('Arial',48, 'bold'), 'red', 'black')
+		self.ready_tag = SmartLabel(self.drawer, x, y, ('Arial',24,'bold'), 'lime')		
+
 
 		self.bet_chips = []
 		self.earnings_chips = []
@@ -368,14 +425,15 @@ class Seat():
 			self.earnings_chips.append(Chip(self.drawer,x,y,chip_r))
 
 
-		self.ready_tag = self.drawer.create_text(x, y+h+200,text='READY',fill='lime',font=('Arial',24,'bold'),state='hidden')
+		
 
 	def reset(self):
 		self.drawer.itemconfigure(self.turn_highlight, fill=FELT_GREEN, outline=FELT_GREEN)
 		self.drawer.itemconfigure(self.card_area, fill=FELT_GREEN)
 		self.drawer.itemconfigure(self.name_tag, text='')
 		self.drawer.itemconfigure(self.sum_hint_tag, text='')
-		self.drawer.itemconfigure(self.bust_label,text='')
+		self.ready_tag.hide()
+		self.seat_notification.hide()
 		for chip in self.bet_chips:
 			chip.reset()
 		for chip in self.earnings_chips:
@@ -383,7 +441,11 @@ class Seat():
 		self.hand.clear()
 
 
-	def render_updates(self, content, is_me, seat_of_turn):
+	def render_updates(self, content, seat, is_me, seat_of_turn):
+		if not content['name']: #player leaving ?
+			self.reset()
+			return;
+
 		if is_me and seat_of_turn:
 			color = PURPLE
 			fg = WHITE
@@ -397,38 +459,79 @@ class Seat():
 			color = FELT_GREEN
 			fg = BLACK
 
-		self.drawer.itemconfigure(self.turn_highlight, fill=color, outline=color)
-		self.drawer.itemconfigure(self.name_tag,fill=fg)
-		self.drawer.itemconfigure(self.card_area, fill=color)
-		self.drawer.itemconfigure(self.name_tag, text=content['name'])
 
+		if content['ready']:
+			self.ready_tag.update("READY")
+		else:
+			self.ready_tag.hide()
 
-		state = 'normal' if content['ready'] else 'hidden'
-		self.drawer.itemconfigure(self.ready_tag, state=state)
+		if content['active']: self.hand.render_updates(content['cards'])
+		if self.drawer.done_dealing(seat):
 
-		for chip, amount in zip(self.earnings_chips,content['earnings']):
-			chip.render_updates(amount)
+			self.drawer.itemconfigure(self.turn_highlight, fill=color, outline=color)
+			self.drawer.itemconfigure(self.name_tag,fill=fg)
+			self.drawer.itemconfigure(self.card_area, fill=color)
+			self.drawer.itemconfigure(self.name_tag, text=content['name'])
 
-		for chip, amount in zip(self.bet_chips,content['bet']):
-			chip.render_updates(amount)
+			if content['active']:
+				self.drawer.itemconfigure(self.sum_hint_tag, text='/'.join([str(val) for val in content['sum']]))
+				if min(content['sum']) > 21:
+					self.seat_notification.update("BUST")
+			
+			for chip, amount in zip(self.earnings_chips,content['earnings']):
+				chip.render_updates(amount)
 
-		if not content['active']: return # BREAKING OUT IF PLAYER IS NOT ACTIVE TBIS MAY CAUSE ISSUES
+			for chip, amount in zip(self.bet_chips,content['bet']):
+				chip.render_updates(amount)
 
+			
+			
 
-		bust_text = 'BUST' if min(content['sum']) > 21 else ''
-		self.drawer.itemconfigure(self.sum_hint_tag, text='/'.join([str(val) for val in content['sum']]))
-		self.drawer.itemconfigure(self.bust_label, text=bust_text)
-		self.drawer.tag_raise(self.bust_label)
-		self.hand.render_updates(content['cards'])
+class SmartLabel():
+	def __init__(self, drawer_manager, x, y, font, fg, bg=None):
+		self.drawer = drawer_manager
+		self.x, self.y = x,y
+		self.font_data = font
+		self.fg = fg
+		self.bg = bg
+		self.active = False
+		self.message = ''
+		self.padding = 5
 
+		self.text = self.drawer.create_text(x,y,font=font, fill=self.fg, text=self.message, state='hidden')
 
-		
+		self.components = [self.text]
+		if self.bg:
+			self.bbox = self.drawer.create_rectangle(x,y,x,y,fill=self.bg,outline=self.bg, state='hidden')
+			self.components.insert(0,self.bbox)		
+
+	def update(self,message=None):
+		self.active = True
+		if message:
+			self.message = message
+
+		for component in self.components:
+			self.drawer.tag_raise(component)
+			self.drawer.itemconfigure(component, state='normal')
+
+		self.drawer.itemconfigure(self.text,text=self.message)
+
+		if self.bg:
+			x1, y1, x2, y2 = self.drawer.bbox(self.text)
+			self.drawer.coords(self.bbox, x1-self.padding, y1-self.padding, x2+self.padding, y2+self.padding)
+
+	def hide(self):
+		self.active = False
+		for component in self.components:
+			self.drawer.itemconfigure(component, state='hidden')
+
 class Hand():
-	def __init__(self, drawer_manager, x, y, offset=(35,5)):
+	def __init__(self, drawer_manager, seat, x, y, offset=(35,5)):
 		self.x, self.y = x,y
 		self.offset = offset
 		self.cards = []
 		self.drawer = drawer_manager
+		self.seat_index = seat
 
 	def clear(self):
 		self.cards = []
@@ -443,53 +546,147 @@ class Hand():
 		for i in range(cards_in_hand, cards_on_server):
 			card_name, card_suit = cards[i]
 
-			self.add_card(find_card_path(card_name,card_suit))
+			#self.hand.add_card(find_card_path('A','spades'), (0.5,0)) # (0.5,i*0.5)
+			self.add_card(find_card_path(card_name,card_suit),(DEAL_SPEED,0))
 
+		for card in self.cards:
+			self.drawer.tag_raise(card)
 
-	def add_card(self, card_path, rotation=0):
-		img = Image.open(card_path)
-
+	def scale_card(self,path):
+		if not path: return None
+		img = Image.open(path)
 		scaled_img = img.resize((CARD_W,CARD_H))
+		return ImageTk.PhotoImage(scaled_img)
 
-		rotated_img = scaled_img.rotate(rotation, expand=True)
 
-		tk_img = ImageTk.PhotoImage(rotated_img)
-
+	def add_card(self, card_path, animation_info=None):
 		n = len(self.cards)
-		offset_x, offset_y = self.offset[0] * n, self.offset[1] * n
+		final_x, final_y = self.x + self.offset[0] * n, self.y + self.offset[1] * n
 
-		angle_rad = radians(rotation)
+		start_x, start_y = final_x, final_y
 
-		rotated_x = offset_x * cos(angle_rad) - offset_y * sin(angle_rad)
-		rotated_y = offset_x * sin(angle_rad) + offset_y * cos(angle_rad)
+		img = self.scale_card(card_path)
+		inital_image = img
+		if animation_info:
+			card_back = self.scale_card(find_card_path('hidden','hidden'))
+			start_x, start_y = self.drawer.deck_location
+			inital_image = card_back
+		else: 
+			card_back = None
+		
 
-		final_x = self.x + rotated_x
-		final_y = self.y + rotated_y
+		card_obj = self.drawer.create_image(start_x, start_y, anchor='nw', image=inital_image, state='hidden')
 
-		self.cards.append((card_path, tk_img))
+		self.cards.append([card_obj, card_back, img])
 
-		self.drawer.create_image(final_x, final_y, anchor='nw', image=tk_img)
+		if animation_info: # only animate if a delay is given
+			duration, delay = animation_info
+
+			
+			self.drawer.master.animations.append(
+				DealCardAnimation(
+					self.drawer,
+					card_obj,
+					img,
+					(start_x, start_y),
+					(final_x, final_y),
+					duration,
+					DELAY * sum(self.drawer.cards_to_deal), # cards_to_deal delay
+					self.seat_index,
+					)
+			)
+			self.drawer.cards_to_deal[self.seat_index] += 1
+		else:
+			self.drawer.itemconfigure(card_obj,state='normal')
+
+class DealCardAnimation(Animation):
+	def __init__(self, drawer, image, card_face, start_coords, end_coords, duration, delay, seat_index):
+		super().__init__(self.move, self.clean_up, duration, delay)
+		self.drawer = drawer
+		self.image = image
+		self.start_coords = start_coords
+		self.end_coords = end_coords
+		self.delay = delay
+		self.duration = duration
+		self.card_face = card_face
+		self.coords = self.start_coords
+		self.seat_index = seat_index
+
+		self.speed_x = (self.end_coords[0] - self.start_coords[0])/ self.duration
+		self.speed_y = (self.end_coords[1] - self.start_coords[1])/ self.duration 
+
+	def move(self, dt):
+		self.drawer.itemconfigure(self.image,state='normal')
+		print('update')
+		self.coords = (self.coords[0] + self.speed_x * dt, self.coords[1] + self.speed_y * dt)
+		self.drawer.coords(self.image, self.coords[0], self.coords[1])
+		self.drawer.tag_raise(self.image)
+		x, y = self.coords
+		margin = 15
+		return (self.end_coords[0] - margin <= x <= self.end_coords[0] + margin) and \
+			(self.end_coords[1] - margin <= y <= self.end_coords[1] + margin)
+
+	def clean_up(self):
+		self.drawer.cards_to_deal[self.seat_index] -= 1
+		self.drawer.coords(self.image, self.end_coords[0],self.end_coords[1])
+
+		if self.card_face:
+			self.drawer.itemconfigure(self.image, image=self.card_face)
+
+		del self.card_face
+		del self
+
 
 class Dealer():
 	def __init__(self, drawer_manager, x, y, w, h):
 		self.drawer = drawer_manager
-		self.hand = Hand(self.drawer, x - (w/2) + (w*0.05),y - (h/2) + (h*0.1), (110,0))
-		self.play_area = self.drawer.create_rectangle(x-(w/2),y-(h/2),x+(w/2),y+(h/2),fill=FELT_GREEN,outline=YELLOW,width=3)
+		self.hand = Hand(self.drawer, -1, x - (w/2) + (w*0.05),y - (h/2) + (h*0.1), (110,0))
+		self.play_area = self.drawer.create_rectangle(x-(w/2),y-(h/2),x+(w/2),y+(h/2),fill=FELT_GREEN,outline=YELLOW,width=3,tags='table')
 		self.sum_label = self.drawer.create_text(x-(w/1.7), y,text='', font=('Arial',18),fill=GOLD)
+
+		self.dealer_notification = SmartLabel(self.drawer, x, y, ('Arial',48, 'bold'), 'red', 'black')
 
 		self.fake_deck_cards = 15
 
 
 		self.is_last_hand = True
 
-		self.deck = Hand(self.drawer, x+(w/2)+(CARD_W/3), y-(CARD_H/2), (1,-1))
-		
+		self.deck = Hand(self.drawer, None, x+(w/2)+(CARD_W/3), y-(CARD_H/2), (1,-1))
+		self.deck_location = (x+(w/2)+(CARD_W/3), y-(CARD_H/2))
+
+		self.has_revealed_hidden = False
+
 
 	def render_updates(self,content):
-		if content['turn_index'] == content['max_players']: self.hand.clear()
+		if not self.has_revealed_hidden and content['turn_index'] == content['max_players']: 
+			self.has_revealed_hidden = True
+
+			first_card = content['dealer'][0]
+			im = self.hand.scale_card(find_card_path(first_card[0],first_card[1]))
+			print(find_card_path(first_card[0],first_card[1]))
+			self.drawer.itemconfigure(self.hand.cards[0][0],image=im)
+			self.hand.cards[0][2] = im
+
 		self.hand.render_updates(content['dealer'])
 
+		if not (sum(self.drawer.cards_to_deal) == 0 and self.drawer.done_dealing(-1)): return		
+
 		self.drawer.itemconfigure(self.sum_label, text=content['dealer_sum'])
+		#notifications
+		if content['dealer_sum'] != '?':
+
+			self.drawer.tag_raise(self.dealer_notification)
+			dealer_sum = int(content['dealer_sum'])
+			message = None
+			if dealer_sum == 21 and len(content['dealer']) == 2: #delt blackjack
+				message = "Black Jack"
+			elif dealer_sum > 21:
+				message = "Bust"
+
+			if message:
+				self.dealer_notification.update(message)
+
+
 
 		deck_percentange = content['deck'][0] / content['deck'][1]
 		fake_percentage = len(self.deck.cards)/self.fake_deck_cards
@@ -509,6 +706,9 @@ class Dealer():
 
 
 	def reset(self):
+		# self.drawer.itemconfigure(self.dealer_notification, text='')
+		self.has_revealed_hidden = False
+		self.dealer_notification.hide()
 		self.hand.clear()
 
 if __name__ == '__main__':

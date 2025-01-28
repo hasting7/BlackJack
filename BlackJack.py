@@ -1,6 +1,6 @@
 from Cards import Deck
 
-from random import choice
+from random import choice, gauss
 
 class PlayerData():
 	def __init__(self, player_id, seat, money_updater, leave_updater):
@@ -50,7 +50,7 @@ class BlackJackTable():
 
 		self.deck = Deck(6)
 
-		self.ready_threshold = 0.4
+		self.ready_threshold = 0.55
 
 		# turn is based on active_player array
 		self.in_progress = False
@@ -172,12 +172,21 @@ class BlackJackTable():
 			total += value
 		return total > 21
 
+	def locate_seat(self):
+		mu = (len(self.seats) - 1) / 2
+		index = int(gauss(mu,1))
+		random_index = max(0, min(len(self.seats) - 1, index))
+
+		return random_index
+
+
 
 	def join_table(self, player_id, money_function, leave_funtion):
 		if not self.has_room(): return False
 
-		seat = choice(self.open_seats)
-		self.open_seats.remove(seat)
+		# seat = choice(self.open_seats)
+		# self.open_seats.remove(seat)
+		seat = self.locate_seat()
 
 		self.seats[seat] = player_id
 

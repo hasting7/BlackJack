@@ -1,4 +1,4 @@
-import random, os
+import random, os, sys
 from PIL import Image
 
 
@@ -42,7 +42,7 @@ class Card():
 
 		self.information = [self.name, self.suit_name]
 
-		self.path = os.path.join('./card_images','%s_%s.png'%(self.name,self.suit_name))
+		self.path = find_card_path(self.name, self.suit_name)
 
 	def __str__(self):
 		return "%s%s"%(self.name, self.suit_symbol)
@@ -85,7 +85,11 @@ class Deck():
 		return len(self.deck) < self.full_deck_size * self.last_hand_percent
 
 def find_card_path(name, suit):
-	return os.path.join('./card_images','%s_%s.png'%(name,suit))
+	if getattr(sys, "frozen", False):  # Bundled as an executable
+		base_path = sys._MEIPASS
+	else:
+		base_path = os.path.abspath(".")
+	return os.path.join(base_path,'card_images','%s_%s.png'%(name,suit))
 
 def terminal_name(name,suit):
 	symbol = "?"
