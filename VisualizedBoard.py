@@ -326,9 +326,10 @@ class Chip():
 		chip_fg = BLACK
 		state = 'hidden'
 		bet_text = ''
+
 		if amount > 0:
 			chip_index = -1
-			for i in range(len(CHIP_DENOMINATIONS)-1, 0, -1):
+			for i in range(len(CHIP_DENOMINATIONS)-1, -1, -1):
 				if amount - CHIP_DENOMINATIONS[i] >= 0:
 					chip_index = i
 					break
@@ -760,6 +761,6 @@ if __name__ == '__main__':
 	else:
 		name = sys.argv[1]
 
-	app = App(name, 50000)
+	app = App(name, 1_000)
 
 	app.start()
