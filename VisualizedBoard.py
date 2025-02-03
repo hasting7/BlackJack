@@ -203,8 +203,7 @@ class UserActions(Frame):
 		self.master.do_action('bet %d'%self.bet_amount)
 
 	def render_updates(self,personal_money):
-		if personal_money:
-			self.bank_label.config(text="${:,}".format(personal_money))
+		self.bank_label.config(text="${:,}".format(personal_money))
 
 
 class Table(Canvas):
@@ -323,7 +322,7 @@ class Seat():
 			color = BLUE
 			fg = BLACK
 		elif is_me:
-			color = ACENT_GREEN
+			color = ACCENT_GREEN
 			fg = BLACK
 		else:
 			color = FELT_GREEN
@@ -336,6 +335,7 @@ class Seat():
 			self.ready_tag.hide()
 
 		if content['active']: self.hand.render_updates(content['cards'])
+
 		if self.drawer.done_dealing(seat):
 
 			self.drawer.itemconfigure(self.turn_highlight, fill=color, outline=color)
@@ -350,9 +350,10 @@ class Seat():
 			
 			for chip, amount in zip(self.earnings_chips,content['earnings']):
 				chip.render_updates(amount)
-
 			for chip, amount in zip(self.bet_chips,content['bet']):
 				chip.render_updates(amount)
+
+			
 
 
 class Card():
@@ -467,7 +468,7 @@ class Hand():
 class Dealer():
 	def __init__(self, drawer_manager, x, y, w, h):
 		self.drawer = drawer_manager
-		self.hand = Hand(self.drawer, -1, x - (w/2) + (w*0.05),y - (h/2) + (h*0.1), (110,0))
+		self.hand = Hand(self.drawer, -1, x - (w/2) + (w*0.05),y - (h/2) + (h*0.1), (CARD_W*1.05,0))
 		self.play_area = self.drawer.create_rectangle(x-(w/2),y-(h/2),x+(w/2),y+(h/2),fill=FELT_GREEN,outline=YELLOW,width=3,tags='table')
 		self.sum_label = self.drawer.create_text(x-(w/1.7), y,text='', font=('Arial',18),fill=GOLD)
 
@@ -485,18 +486,19 @@ class Dealer():
 
 
 	def render_updates(self,content):
+		if not (sum(self.drawer.cards_to_deal) == 0 and self.drawer.done_dealing(-1)): return
+
+
 		if not self.has_revealed_hidden and content['turn_index'] == content['max_players']: 
 			self.has_revealed_hidden = True
-
 			first_card = content['dealer'][0]
-			print('setting face to',find_card_path(first_card[0],first_card[1]))
-			# flip first card
-			self.hand.cards[0].assign_front_image(find_card_path(first_card[0],first_card[1]))
-			self.hand.cards[0].flip()
+			print(self.hand.cards)
+			if len(self.hand.cards) > 1: # DIX THIS WHEN WE KNOW WHAT IS WRONT
+				self.hand.cards[0].assign_front_image(find_card_path(first_card[0],first_card[1]))
+				self.hand.cards[0].flip()
 
 		self.hand.render_updates(content['dealer'])
 
-		if not (sum(self.drawer.cards_to_deal) == 0 and self.drawer.done_dealing(-1)): return		
 
 		self.drawer.itemconfigure(self.sum_label, text=content['dealer_sum'])
 		#notifications

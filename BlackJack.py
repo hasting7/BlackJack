@@ -138,6 +138,11 @@ class BlackJackTable():
 		if self.deck.last_hand:
 			self.deck.reset()
 
+		for i, p_index in enumerate(self.seats):
+			if p_index:
+				player = self.players[p_index]
+				print("SEAT %d) money = %d"%(i,player.money))
+
 		return True
 
 	def smart_sum(self, hand):
