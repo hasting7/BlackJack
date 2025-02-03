@@ -1,4 +1,4 @@
-from StatusCodes import *
+from includes.StatusCodes import *
 import socket, datetime, sys, json, os, time
 from Cards import terminal_name
 # from VisualisedBoard import App

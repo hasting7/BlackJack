@@ -1,40 +1,13 @@
 from tkinter import *
-from PIL import Image,ImageTk
-
+from PIL import Image, ImageTk
 from math import sin, cos, radians, sqrt
-from time import sleep, time
-
+from time import sleep
 from Cards import Deck, find_card_path
-import sys
-
 from Client import Player
-
-from StatusCodes import *
-
-W,H = (1200, 600)
-SEATS = 6
-DEAL_SPEED = 0.3
-DELAY = 0.25
-
-scale = 170/120
-CARD_W = 100
-CARD_H = int(CARD_W*scale)
-
-
-FELT_GREEN = '#277714'
-ACENT_GREEN = '#348C2E'
-YELLOW = '#F2C94C'
-BLACK = '#000000'
-GOLD='#D1A15B'
-BLUE='#3385B1'
-BROWN='#5C3A21'
-PURPLE='#4B0082'
-WHITE='#FFFFFF'
-
-CHIP_COLORS = ["#F44336", "#FF9800", "#FFEB3B", "#4CAF50", "#2196F3", "#9C27B0", "#00BCD4", "#FF5722", "#3F51B5", "#8E44AD"]
-CHIP_FG = [WHITE, BLACK, BLACK, WHITE, WHITE, WHITE, BLACK, BLACK, WHITE, WHITE]
-CHIP_DENOMINATIONS = [25, 50, 100, 250, 500, 1000, 2500, 10000]
-
+from includes.StatusCodes import *
+from includes.VisualConstants import *
+from Animations import *
+from CustomCanvasObjects import *
 
 
 class App(Tk):
@@ -71,8 +44,10 @@ class App(Tk):
 
 		self.bind('q', lambda e: self.do_action(LEAVE))
 
-		
+	def add_animation(self, animation):
+		self.animations.append(animation)
 
+		
 	def render_updates(self, content):
 
 		if self.round_going and (content['turn_index'] == None):
@@ -232,37 +207,6 @@ class UserActions(Frame):
 		if personal_money:
 			self.bank_label.config(text="${:,}".format(personal_money))
 
-class BetModifier(Frame):
-	def __init__(self,delta, update_func, *args,**kwargs):
-		super().__init__(*args,**kwargs)
-
-		self.delta = delta
-
-		self.chip_count = 0
-		self.on_update = update_func
-
-		self.font_size = 16
-
-		self.inc = Button(self, text='+%d'%self.delta, command=lambda : self.edit_chips(1),highlightbackground=self['bg'], bg=self['bg'], font=('Arial',self.font_size))
-		self.dec = Button(self, text='-%d'%self.delta, command=lambda : self.edit_chips(-1),highlightbackground=self['bg'], bg=self['bg'], font=('Arial',self.font_size))
-		self.label = Label(self,text='0',width=3,height=1,font=('Arial', self.font_size))
-
-		self.inc.pack(side=TOP,fill='both',expand=True)
-		self.label.pack(side=TOP,fill='both',expand=True,padx=4)
-		self.dec.pack(side=TOP,fill='both',expand=True)
-
-
-	def edit_chips(self, count):
-		if self.chip_count + count < 0: return
-
-		self.chip_count += count
-
-		self.label.config(text='%d'%self.chip_count)
-
-		self.on_update()
-
-	def get_total(self):
-		return self.delta * self.chip_count
 
 class Table(Canvas):
 	def __init__(self, *args, **kwargs):
@@ -306,78 +250,6 @@ class Table(Canvas):
 		self.dealer.reset()
 		for seat in self.seats:
 			seat.reset()
-
-
-class Chip():
-	def __init__(self, drawer_manager, x, y, r):
-		self.drawer = drawer_manager
-		self.x = x 
-		self.y = y 
-		self.r = r
-
-		self.chip = self.drawer.create_oval(x-r,y-r,x+r,y+r,fill=WHITE,outline=BLACK,width=2,state='hidden')
-		self.value_tag = self.drawer.create_text(x,y, text='', fill=BLACK,font=('Arial',16))
-
-	def reset(self):
-		self.render_updates(0)
-
-	def render_updates(self,amount):
-		chip_bg = WHITE
-		chip_fg = BLACK
-		state = 'hidden'
-		bet_text = ''
-
-		if amount > 0:
-			chip_index = -1
-			for i in range(len(CHIP_DENOMINATIONS)-1, -1, -1):
-				if amount - CHIP_DENOMINATIONS[i] >= 0:
-					chip_index = i
-					break
-
-			if chip_index != -1:
-				chip_bg = CHIP_COLORS[chip_index]
-				chip_fg = CHIP_FG[chip_index]
-				state = 'normal'
-				bet_text = "${:,}".format(amount)
-
-		self.drawer.itemconfigure(self.chip, state=state, fill=chip_bg)
-
-		self.drawer.itemconfigure(self.value_tag, text=bet_text,fill=chip_fg)
-		self.drawer.tag_raise(self.value_tag)
-
-class Animation():
-	def __init__(self, animation_function, clean_up_function, duration, delay):
-		self.duration = duration
-		self.delay = delay
-		self.update_function = animation_function
-		self.clean_up_function = clean_up_function
-
-		self.terminate = False
-
-		self.start_time = time()
-		self.first_frame = None
-		self.last_time = time()
-		self.current_time = time()
-		self.time_remaning = duration
-
-	def iterate(self):
-		self.last_time = self.current_time
-		self.current_time = time()
-		if self.current_time -  self.start_time < self.delay: return False
-		if not self.first_frame: self.first_frame = time()
-
-		dt = self.current_time - self.last_time
-
-		self.time_remaning = self.duration - (self.current_time - self.first_frame)
-
-		is_done = self.update_function(dt)
-
-		is_done = is_done or self.time_remaning <= 0
-
-		if is_done:
-			self.clean_up()
-
-		return is_done
 
 
 class Seat():
@@ -483,46 +355,55 @@ class Seat():
 			for chip, amount in zip(self.bet_chips,content['bet']):
 				chip.render_updates(amount)
 
-			
-			
 
-class SmartLabel():
-	def __init__(self, drawer_manager, x, y, font, fg, bg=None):
+class Card():
+	def __init__(self, drawer_manager, canvas_obj, front_img, back_img):
 		self.drawer = drawer_manager
-		self.x, self.y = x,y
-		self.font_data = font
-		self.fg = fg
-		self.bg = bg
-		self.active = False
-		self.message = ''
-		self.padding = 5
+		self.obj = canvas_obj
+		self.front_img = front_img
+		self.back_img = back_img
 
-		self.text = self.drawer.create_text(x,y,font=font, fill=self.fg, text=self.message, state='hidden')
+	def discard(self, animate=False):
+		def on_complete(animation):
+			print("animation complete")
+			del animation
+			del self
 
-		self.components = [self.text]
-		if self.bg:
-			self.bbox = self.drawer.create_rectangle(x,y,x,y,fill=self.bg,outline=self.bg, state='hidden')
-			self.components.insert(0,self.bbox)		
+		if animate:
+			inital_pos = self.drawer.coords(self.obj)
+			self.drawer.master.add_animation(
+				DiscardCardAnimation(
+					self.drawer,
+					self.obj,
+					inital_pos,
+					(W,self.drawer.deck_location[1]),
+					0.75,
+					0,
+					on_complete,
+				)
+			)
 
-	def update(self,message=None):
-		self.active = True
-		if message:
-			self.message = message
+		else:
+			del self
 
-		for component in self.components:
-			self.drawer.tag_raise(component)
-			self.drawer.itemconfigure(component, state='normal')
 
-		self.drawer.itemconfigure(self.text,text=self.message)
+	def deal(self, animate=False):
+		if animate:
+			self.drawer.master.add_animation(
+				DealCardAnimation(
+					self.drawer,
+					card_obj,
+					img,
+					self.drawer.deck_location,
+					(final_x, final_y),
+					duration,
+					DELAY * sum(self.drawer.cards_to_deal), # cards_to_deal delay
+					self.seat_index,
+				)
+			)
 
-		if self.bg:
-			x1, y1, x2, y2 = self.drawer.bbox(self.text)
-			self.drawer.coords(self.bbox, x1-self.padding, y1-self.padding, x2+self.padding, y2+self.padding)
-
-	def hide(self):
-		self.active = False
-		for component in self.components:
-			self.drawer.itemconfigure(component, state='hidden')
+	def flip(self):
+		pass 
 
 class Hand():
 	def __init__(self, drawer_manager, seat, x, y, offset=(35,5)):
@@ -534,18 +415,19 @@ class Hand():
 
 	def clear(self):
 		for card in self.cards:
-			obj, front, back, pos = card
-			self.drawer.master.animations.append(
-				DiscardCardAnimation(
-					self.drawer,
-					obj,
-					pos,
-					(W,self.drawer.deck_location[1]),
-					0.75,
-					0,
-					card
-					)
-			)
+			card.discard(True)
+			# obj, front, back, pos = card
+			# self.drawer.master.animations.append(
+			# 	DiscardCardAnimation(
+			# 		self.drawer,
+			# 		obj,
+			# 		pos,
+			# 		(W,self.drawer.deck_location[1]),
+			# 		0.75,
+			# 		0,
+			# 		card
+			# 		)
+			# )
 		self.cards = []
 
 	def render_updates(self, cards, refresh=False):
@@ -589,7 +471,8 @@ class Hand():
 
 		card_obj = self.drawer.create_image(start_x, start_y, anchor='nw', image=inital_image, state='hidden')
 
-		self.cards.append([card_obj, card_back, img, (final_x,final_y)])
+		card = Card(self.drawer, card_obj, inital_image, img)
+		self.cards.append(card)
 
 		if animation_info: # only animate if a delay is given
 			duration, delay = animation_info
@@ -598,7 +481,7 @@ class Hand():
 			self.drawer.master.animations.append(
 				DealCardAnimation(
 					self.drawer,
-					card_obj,
+					card.obj,
 					img,
 					(start_x, start_y),
 					(final_x, final_y),
@@ -610,74 +493,6 @@ class Hand():
 			self.drawer.cards_to_deal[self.seat_index] += 1
 		else:
 			self.drawer.itemconfigure(card_obj,state='normal')
-
-class DealCardAnimation(Animation):
-	def __init__(self, drawer, image, card_face, start_coords, end_coords, duration, delay, seat_index):
-		super().__init__(self.move, self.clean_up, duration, delay)
-		self.drawer = drawer
-		self.image = image
-		self.start_coords = start_coords
-		self.end_coords = end_coords
-		self.delay = delay
-		self.duration = duration
-		self.card_face = card_face
-		self.coords = self.start_coords
-		self.seat_index = seat_index
-
-		self.speed_x = (self.end_coords[0] - self.start_coords[0])/ self.duration
-		self.speed_y = (self.end_coords[1] - self.start_coords[1])/ self.duration 
-
-	def move(self, dt):
-		self.drawer.itemconfigure(self.image,state='normal')
-		print('update')
-		self.coords = (self.coords[0] + self.speed_x * dt, self.coords[1] + self.speed_y * dt)
-		self.drawer.coords(self.image, self.coords[0], self.coords[1])
-		self.drawer.tag_raise(self.image)
-		x, y = self.coords
-		margin = 15
-		return (self.end_coords[0] - margin <= x <= self.end_coords[0] + margin) and \
-			(self.end_coords[1] - margin <= y <= self.end_coords[1] + margin)
-
-	def clean_up(self):
-		self.drawer.cards_to_deal[self.seat_index] -= 1
-		self.drawer.coords(self.image, self.end_coords[0],self.end_coords[1])
-
-		if self.card_face:
-			self.drawer.itemconfigure(self.image, image=self.card_face)
-
-		del self.card_face
-		del self
-
-class DiscardCardAnimation(Animation):
-	def __init__(self, drawer, image, start_coords, end_coords, duration, delay, card_data):
-		super().__init__(self.move, self.clean_up, duration, delay)
-		self.drawer = drawer
-		self.image = image
-		self.start_coords = start_coords
-		self.end_coords = end_coords
-		self.delay = delay
-		self.duration = duration
-		self.coords = self.start_coords
-
-		self.speed_x = (self.end_coords[0] - self.start_coords[0])/ self.duration
-		self.speed_y = (self.end_coords[1] - self.start_coords[1])/ self.duration 
-		self.card_data = card_data
-
-	def move(self, dt):
-		print('update')
-		self.coords = (self.coords[0] + self.speed_x * dt, self.coords[1] + self.speed_y * dt)
-		self.drawer.coords(self.image, self.coords[0], self.coords[1])
-		self.drawer.tag_raise(self.image)
-		x, y = self.coords
-		margin = 15
-		return (self.end_coords[0] - margin <= x <= self.end_coords[0] + margin) and \
-			(self.end_coords[1] - margin <= y <= self.end_coords[1] + margin)
-
-	def clean_up(self):
-		self.drawer.coords(self.image, self.end_coords[0],self.end_coords[1])
-		del self.card_data
-		del self
-
 
 class Dealer():
 	def __init__(self, drawer_manager, x, y, w, h):
@@ -706,8 +521,7 @@ class Dealer():
 			first_card = content['dealer'][0]
 			im = self.hand.scale_card(find_card_path(first_card[0],first_card[1]))
 			print(find_card_path(first_card[0],first_card[1]))
-			self.drawer.itemconfigure(self.hand.cards[0][0],image=im)
-			self.hand.cards[0][2] = im
+			self.drawer.itemconfigure(self.hand.cards[0].obj,image=im)
 
 		self.hand.render_updates(content['dealer'])
 
@@ -755,8 +569,9 @@ class Dealer():
 
 if __name__ == '__main__':
 	from faker import Faker
+	from sys import argv
 
-	if len(sys.argv) != 2:
+	if len(argv) != 2:
 		name = Faker().first_name()
 	else:
 		name = sys.argv[1]
