@@ -363,47 +363,54 @@ class Card():
 		self.front_img = front_img
 		self.back_img = back_img
 
-	def discard(self, animate=False):
+	def discard(self):
 		def on_complete(animation):
-			print("animation complete")
 			del animation
-			del self
 
-		if animate:
-			inital_pos = self.drawer.coords(self.obj)
-			self.drawer.master.add_animation(
-				DiscardCardAnimation(
-					self.drawer,
-					self.obj,
-					inital_pos,
-					(W,self.drawer.deck_location[1]),
-					0.75,
-					0,
-					on_complete,
-				)
+		inital_pos = self.drawer.coords(self.obj)
+		self.drawer.master.add_animation(
+			LinearTranslation(
+				self.drawer,
+				self.obj,
+				inital_pos,
+				(W,self.drawer.deck_location[1]),
+				0.75,
+				0,
+				None,
+				on_complete,
 			)
+		)
 
-		else:
-			del self
+	def deal(self, start_pos, end_pos, duration, delay, seat_index):
+		def on_start(animation):
+			self.drawer.itemconfigure(self.obj, state='normal')
 
+		def on_complete(animation):
+			self.drawer.cards_to_deal[seat_index] -= 1
+			self.flip()
+			del animation
 
-	def deal(self, animate=False):
-		if animate:
-			self.drawer.master.add_animation(
-				DealCardAnimation(
-					self.drawer,
-					card_obj,
-					img,
-					self.drawer.deck_location,
-					(final_x, final_y),
-					duration,
-					DELAY * sum(self.drawer.cards_to_deal), # cards_to_deal delay
-					self.seat_index,
-				)
+		self.drawer.master.add_animation(
+			LinearTranslation(
+				self.drawer,
+				self.obj,
+				start_pos,
+				end_pos,
+				duration,
+				delay, # cards_to_deal delay
+				on_start,
+				on_complete
 			)
+		)
+		self.drawer.cards_to_deal[seat_index] += 1
 
 	def flip(self):
-		pass 
+		self.drawer.itemconfigure(self.obj, image = self.front_img)
+
+	def assign_front_image(self, path):
+		img = Image.open(path)
+		scaled_img = img.resize((CARD_W,CARD_H))
+		self.front_img = ImageTk.PhotoImage(scaled_img)
 
 class Hand():
 	def __init__(self, drawer_manager, seat, x, y, offset=(35,5)):
@@ -415,19 +422,7 @@ class Hand():
 
 	def clear(self):
 		for card in self.cards:
-			card.discard(True)
-			# obj, front, back, pos = card
-			# self.drawer.master.animations.append(
-			# 	DiscardCardAnimation(
-			# 		self.drawer,
-			# 		obj,
-			# 		pos,
-			# 		(W,self.drawer.deck_location[1]),
-			# 		0.75,
-			# 		0,
-			# 		card
-			# 		)
-			# )
+			card.discard()
 		self.cards = []
 
 	def render_updates(self, cards, refresh=False):
@@ -439,8 +434,6 @@ class Hand():
 
 		for i in range(cards_in_hand, cards_on_server):
 			card_name, card_suit = cards[i]
-
-			#self.hand.add_card(find_card_path('A','spades'), (0.5,0)) # (0.5,i*0.5)
 			self.add_card(find_card_path(card_name,card_suit),(DEAL_SPEED,0))
 
 		for card in self.cards:
@@ -453,46 +446,24 @@ class Hand():
 		return ImageTk.PhotoImage(scaled_img)
 
 
-	def add_card(self, card_path, animation_info=None):
+	def add_card(self, front_card_path, animation_info=None):
 		n = len(self.cards)
-		final_x, final_y = self.x + self.offset[0] * n, self.y + self.offset[1] * n
+		final_pos = (self.x + self.offset[0] * n, self.y + self.offset[1] * n)
+		start_pos = self.drawer.deck_location if animation_info else final_pos
+		print(front_card_path)
+		front_img = self.scale_card(front_card_path)
+		back_img = self.scale_card(find_card_path('hidden','hidden'))
 
-		start_x, start_y = final_x, final_y
+		card_obj = self.drawer.create_image(start_pos[0], start_pos[1], anchor='nw', image=back_img, state='hidden')
 
-		img = self.scale_card(card_path)
-		inital_image = img
-		if animation_info:
-			card_back = self.scale_card(find_card_path('hidden','hidden'))
-			start_x, start_y = self.drawer.deck_location
-			inital_image = card_back
-		else: 
-			card_back = None
-		
-
-		card_obj = self.drawer.create_image(start_x, start_y, anchor='nw', image=inital_image, state='hidden')
-
-		card = Card(self.drawer, card_obj, inital_image, img)
+		card = Card(self.drawer, card_obj, front_img, back_img)
 		self.cards.append(card)
 
-		if animation_info: # only animate if a delay is given
+		if animation_info:
 			duration, delay = animation_info
-
-			
-			self.drawer.master.animations.append(
-				DealCardAnimation(
-					self.drawer,
-					card.obj,
-					img,
-					(start_x, start_y),
-					(final_x, final_y),
-					duration,
-					DELAY * sum(self.drawer.cards_to_deal), # cards_to_deal delay
-					self.seat_index,
-					)
-			)
-			self.drawer.cards_to_deal[self.seat_index] += 1
+			card.deal(start_pos,final_pos, duration, DELAY * sum(self.drawer.cards_to_deal), self.seat_index)
 		else:
-			self.drawer.itemconfigure(card_obj,state='normal')
+			self.drawer.itemconfigure(card_obj, state='normal')
 
 class Dealer():
 	def __init__(self, drawer_manager, x, y, w, h):
@@ -519,9 +490,10 @@ class Dealer():
 			self.has_revealed_hidden = True
 
 			first_card = content['dealer'][0]
-			im = self.hand.scale_card(find_card_path(first_card[0],first_card[1]))
-			print(find_card_path(first_card[0],first_card[1]))
-			self.drawer.itemconfigure(self.hand.cards[0].obj,image=im)
+			print('setting face to',find_card_path(first_card[0],first_card[1]))
+			# flip first card
+			self.hand.cards[0].assign_front_image(find_card_path(first_card[0],first_card[1]))
+			self.hand.cards[0].flip()
 
 		self.hand.render_updates(content['dealer'])
 
@@ -542,11 +514,8 @@ class Dealer():
 			if message:
 				self.dealer_notification.update(message)
 
-
-
 		deck_percentange = content['deck'][0] / content['deck'][1]
 		fake_percentage = len(self.deck.cards)/self.fake_deck_cards
-
 		if deck_percentange < fake_percentage:
 			self.deck.cards.pop(-1)
 		#								this means there was a shuffle between refreshes
