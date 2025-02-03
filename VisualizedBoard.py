@@ -77,7 +77,6 @@ class App(Tk):
 				if status == CLOSED:
 					break
 
-
 				# take action
 
 			# refresh / process updates
@@ -450,7 +449,7 @@ class Hand():
 		n = len(self.cards)
 		final_pos = (self.x + self.offset[0] * n, self.y + self.offset[1] * n)
 		start_pos = self.drawer.deck_location if animation_info else final_pos
-		print(front_card_path)
+
 		front_img = self.scale_card(front_card_path)
 		back_img = self.scale_card(find_card_path('hidden','hidden'))
 

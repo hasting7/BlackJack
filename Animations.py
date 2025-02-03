@@ -58,8 +58,7 @@ class LinearTranslation(Animation):
 	def move(self, dt):
 		# print('update')
 		self.coords = (self.coords[0] + self.speed_x * dt, self.coords[1] + self.speed_y * dt)
-		self.drawer.coords(self.canvas_object, self.coords[0], self.coords[1])
-		self.drawer.tag_raise(self.canvas_object)
+		self.drawer.move(self.canvas_object, self.speed_x * dt, self.speed_y * dt)
 		x, y = self.coords
 		margin = 15
 		return (self.end_coords[0] - margin <= x <= self.end_coords[0] + margin) and \
