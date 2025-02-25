@@ -1,7 +1,3 @@
-Here’s a more detailed README setup to guide your friends through the installation, setup, and playing process:
-
----
-
 # Blackjack Game Setup and Installation
 
 This document provides instructions on how to set up and play the Blackjack game.
@@ -47,6 +43,11 @@ If you do not have Python installed, you can download it from the official site:
      pip install -r requirements.txt
      ```
 
+   If you do not have `pip` installed, you can try the following alternative:
+   ```sh
+   py -m pip install -r requirements.txt
+   ```
+
 ---
 
 ### For Mac Users:
@@ -75,6 +76,11 @@ If you do not have Python installed, you can download it from the official site:
      ```sh
      pip install -r requirements.txt
      ```
+
+   If you do not have `pip` installed, you can try the following alternative:
+   ```sh
+   py -m pip install -r requirements.txt
+   ```
 
 ---
 
@@ -105,11 +111,3 @@ Once the game is running, you can interact with it using the following keybindin
 
 - **Virtual Environment**: It is recommended to use the virtual environment to avoid conflicts with system-wide Python packages.
 - **Dependencies**: All dependencies required to run the game are listed in `requirements.txt`. This file is automatically created by running `pip freeze > requirements.txt` after installing all necessary packages.
-
----
-
-If you encounter any issues or need help, feel free to reach out!
-
----
-
-Let me know if you need anything else for your README!
