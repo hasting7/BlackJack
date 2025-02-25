@@ -8,7 +8,7 @@ from includes.StatusCodes import *
 from includes.VisualConstants import *
 from Animations import *
 from CustomCanvasObjects import *
-
+import sys
 
 class App(Tk):
 	def __init__(self, name, starting_money):
