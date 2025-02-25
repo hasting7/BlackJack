@@ -6,7 +6,7 @@ from Cards import terminal_name
 class Player():
 	def __init__(self, name, money):
 		self.server = socket.socket()
-		self.server.connect(('0.0.0.0', PORT))
+		self.server.connect(('3.16.51.175', PORT))
 
 
 		status, content = self.take_action(JOIN, [name,money])		
