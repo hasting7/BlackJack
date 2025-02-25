@@ -53,6 +53,7 @@ class App(Tk):
 		self.bind('r', lambda e : self.user_actions.ready())
 
 		self.bind('e', lambda e : self.handle_start_end())
+		self.bind('b', lambda e : self.user_actions.bet())
 
 	def handle_start_end(self):
 		if self.round_going:
