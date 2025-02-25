@@ -1,7 +1,7 @@
 from tkinter import *
 from PIL import Image, ImageTk
 from math import sin, cos, radians, sqrt
-from time import sleep
+from time import sleep, time
 from Cards import Deck, find_card_path
 from Client import Player
 from includes.StatusCodes import *
@@ -9,6 +9,8 @@ from includes.VisualConstants import *
 from Animations import *
 from CustomCanvasObjects import *
 import sys
+
+VIEW_DELTA = 0.2
 
 class App(Tk):
 	def __init__(self, name, starting_money):
@@ -82,6 +84,8 @@ class App(Tk):
 			self.user_actions.render_updates(personal_money)
 
 	def start(self):
+		last_view = time()
+
 		while not self.ready_to_quit:
 			self.update_idletasks()
 			self.update()
@@ -96,9 +100,12 @@ class App(Tk):
 				# take action
 
 			# refresh / process updates
-			status, content = self.player_client.take_action(VIEW,None)
-			if status == SUCCESS:
-				self.render_updates(content)
+			time_now = time()
+			if time_now - last_view >= VIEW_DELTA:
+				last_view = time_now
+				status, content = self.player_client.take_action(VIEW,None)
+				if status == SUCCESS:
+					self.render_updates(content)
 
 
 			for animation_i in range(len(self.animations) - 1, -1, -1):

@@ -1,5 +1,4 @@
 from Cards import Deck
-
 from random import choice, gauss
 
 class PlayerData():
