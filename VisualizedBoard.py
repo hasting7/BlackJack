@@ -50,7 +50,7 @@ class App(Tk):
 		self.bind('<space>', lambda e : self.handle_ready_or_hit())
 		self.bind('s', lambda e : self.user_actions.stand())
 		self.bind('d', lambda e : self.user_actions.double())
-		self.bind('r', lambda e : self.user_actions.reset())
+		self.bind('r', lambda e : self.user_actions.end())
 
 		self.bind('b', lambda e : self.user_actions.bet())
 
