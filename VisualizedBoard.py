@@ -47,13 +47,20 @@ class App(Tk):
 		self.bind('q', lambda e: self.do_action(LEAVE))
 
 
-		self.bind('<space>', lambda e : self.user_actions.hit())
+		self.bind('<space>', lambda e : self.handle_ready_or_hit())
 		self.bind('s', lambda e : self.user_actions.stand())
 		self.bind('d', lambda e : self.user_actions.double())
-		self.bind('r', lambda e : self.user_actions.ready())
+		self.bind('r', lambda e : self.user_actions.reset())
 
 		self.bind('e', lambda e : self.handle_start_end())
 		self.bind('b', lambda e : self.user_actions.bet())
+
+	def handle_ready_or_hit(self):
+		if self.round_going:
+			self.user_actions.hit()
+
+		else:
+			self.user_actions.ready()
 
 	def handle_start_end(self):
 		if self.round_going:

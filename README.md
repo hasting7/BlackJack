@@ -91,7 +91,7 @@ If you do not have Python installed, you can download it from the official site:
 1. After completing the setup, **run the game** by executing the `VisualBoard.py` script:
    - For Windows or Mac, simply run:
      ```sh
-     python VisualBoard.py
+     python VisualizedBoard.py
      ```
 
 ### Game Controls
@@ -99,11 +99,10 @@ If you do not have Python installed, you can download it from the official site:
 Once the game is running, you can interact with it using the following keybindings:
 
 - **Q**: Leave the game
-- **Spacebar**: Hit (draw a card)
+- **Spacebar**: Ready or Hit (draw a card)
 - **S**: Stand (end your turn)
 - **D**: Double (double your bet and draw one more card)
-- **R**: Ready (ready to start a new game)
-- **E**: Start or End the game (depending on the state)
+- **R**: Reset
 
 ---
 
