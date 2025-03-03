@@ -1,5 +1,9 @@
 #!/bin/bash
 
+init_path=$PWD
+
+cd $(dirname "$0")
+
 name=$1
 
 if [ $# -ne 1 ]; then
@@ -7,5 +11,6 @@ if [ $# -ne 1 ]; then
 	name='unknown'
 fi
 
-
 python3 VisualizedBoard.py $name > /dev/null 
+
+cd init_path
