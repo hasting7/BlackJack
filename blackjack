@@ -13,4 +13,4 @@ fi
 
 python3 VisualizedBoard.py $name > /dev/null 
 
-cd init_path
+cd $init_path
