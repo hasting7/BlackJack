@@ -8,9 +8,11 @@ from includes.StatusCodes import *
 from includes.VisualConstants import *
 from Animations import *
 from CustomCanvasObjects import *
+from tkinter import messagebox
 import sys
 
 VIEW_DELTA = 0.2
+
 
 class App(Tk):
 	def __init__(self, name, starting_money):
@@ -53,6 +55,9 @@ class App(Tk):
 		self.bind('r', lambda e : self.user_actions.end())
 
 		self.bind('b', lambda e : self.user_actions.bet())
+
+		self.protocol("WM_DELETE_WINDOW", lambda : self.do_action(LEAVE));
+
 
 	def handle_ready_or_hit(self):
 		if self.round_going:
@@ -122,8 +127,7 @@ class App(Tk):
 
 
 			sleep(0.01)
-
-		print("CLOSING")
+		self.destroy()
 
 	def do_action(self, action):
 		self.action_queue.append(action)
@@ -142,25 +146,11 @@ class UserActions(Frame):
 		self.money_frame.pack(side=LEFT)
 
 		self.bet_frame = Frame(self, height=self['height'],bg=self['bg'])
-		self.bet_frame.pack(side=LEFT)
+		self.bet_frame.pack(side=TOP)
 
-
-		self.action_frame = Frame(self,height=self['height'],bg=self['bg'])
-		self.action_frame.pack(side=RIGHT,expand=True,fill='both')
-		# self.action_frame.pack_propagate(0)
 
 		font_size = 18
 		bet_inc_size = 24
-
-
-		self.hit_btn = Button(self.action_frame, text='Hit', command=self.hit,highlightbackground=self.action_frame['bg'], bg=self.action_frame['bg'], font=('Arial',font_size))
-		self.hit_btn.pack(side="left", fill="y")
-
-		self.stand_btn = Button(self.action_frame, text='Stand', command=self.stand,highlightbackground=self.action_frame['bg'], bg=self.action_frame['bg'], font=('Arial',font_size))
-		self.stand_btn.pack(side="left", fill="y")
-
-		self.double_btn = Button(self.action_frame, text='Double', command=self.double,highlightbackground=self.action_frame['bg'], bg=self.action_frame['bg'], font=('Arial',font_size))
-		self.double_btn.pack(side="left", fill="y")
 
 		for chip_value, chip_color in zip(CHIP_DENOMINATIONS[:7], CHIP_COLORS):
 			editor = BetModifier(chip_value,self.update_bet_label, self.bet_frame,width=55,height=self.bet_frame['height'],bg=chip_color)
@@ -175,20 +165,8 @@ class UserActions(Frame):
 		self.bet_view = Label(self.bet_frame,text='$0',font=('Arial',32),width=10,bg=self.bet_frame['bg'],fg=WHITE)
 		self.bet_view.pack(side=LEFT)
 
-		self.make_bet = Button(self.bet_frame, text='Place Bet', command=self.bet,highlightbackground=self.bet_frame['bg'], bg=self.bet_frame['bg'], font=('Arial',font_size))
-		self.make_bet.pack(side="left", fill="y", expand=True)
-
 
 		self.update_bet_label()
-
-		game_flow = Frame(self.action_frame, bg=self.action_frame['bg'],height=self.action_frame['height'])
-		game_flow.pack(side=LEFT, fill="both", expand=True)
-
-		self.ready_btn = Button(game_flow, text='Ready Up', command=self.ready,highlightbackground=game_flow['bg'], bg=game_flow['bg'], font=('Arial',font_size))
-		self.ready_btn.pack(side=TOP, fill="both", expand=True)
-
-		self.end_btn = Button(game_flow, text='Clear', command=self.end,highlightbackground=game_flow['bg'], bg=game_flow['bg'], font=('Arial',font_size))
-		self.end_btn.pack(side=TOP, fill="both", expand=True)
 
 	def change_bet(self, amount):
 		self.bet_amount += amount
